@@ -12,7 +12,7 @@ function [ output_args ] = spectral_domain_partition( intensor, invector, outfil
     %Read the data
     %fprintf('Reading input\n');
     % Read the input tensor
-    disttensor = dlmread(intensor);
+    disttensor = readtensor(intensor);
     % Read the input vector
     weightvector = dlmread(invector);
     % This below need to be redefined; we only read distances, so the
@@ -42,6 +42,22 @@ end
 
 % Following functions are just copy pasted from the domains repository in
 % order of appearance in the main function of this file (above)
+
+%% I N P U T
+%%%%%%%%%%%%
+
+function [ t ] = readtensor( infile )
+%READTENSOR Reads a tensor from a (L*N)xL matrix on file
+%   infile - tensor infile
+%   t - reshaped tensor returned
+%   
+%   Expects all graphs part of the (L*N)xL matrix to be transposed, so that
+%   transposing before reshaping actually reshapes them in the correct
+%   pose.
+    t = dlmread(infile);
+    s = size(t);
+    t = reshape(t', [s(2) s(2) S(1)/S(2)]);
+end
 
 %% C U T O F F - S E A R C H
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
