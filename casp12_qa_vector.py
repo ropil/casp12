@@ -7,7 +7,7 @@ def readArrayFromFile(infile):
     entries = []
     for line in infile:
         entries.append(float(line))
-    return array(line)
+    return array(entries)
 
 def average(vectors):
     vector = zeros(vectors[0].shape)
