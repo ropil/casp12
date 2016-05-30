@@ -1,4 +1,4 @@
-function [ output_args ] = spectral_domain_partition( intensor, invector, outfile, small )
+function [ disttensor, weightvector, dists, similarity_sigma ] = spectral_domain_partition( intensor, invector, outfile, small )
 %SPECTRAL_DOMAIN_PARTITION Decomposes pdb structure from distance matrix
 %into domain definitions, using the logistic similarity function.
 %
@@ -15,29 +15,32 @@ function [ output_args ] = spectral_domain_partition( intensor, invector, outfil
     disttensor = readtensor(intensor);
     % Read the input vector
     weightvector = dlmread(invector);
-    % This below need to be redefined; we only read distances, so the
-    % following part needs to be converting the distances tensor read to a
-    % similarity matrix, using the optimal cutoff given the average
-    % similarity matrix... You get my drift...
-    dists = get_distances( positions );
-    %Get the optimal similarity function parameter
-    %fprintf('getting similarity sigma\n');
-    similarity_sigma = getcutoff( 0, max(max(dists)), 0.001, @entropy_logistic, dists );
-    [ similarity_sigma, m ] = get_binary_topology_cutoff( dists, similarity_sigma );
-    fprintf('Sigma: %.2f\nNo. Clusters: %d\n', similarity_sigma, m);
-    %Form the laplacian
-    %fprintf('getting laplacian\n');
-    laplacian = getlaplacian( dists, @sim_logistic, similarity_sigma );
-    %Do the decomposition and select the fiedler vector
-    [U, S, V] = svd(laplacian);
-    fiedler = select_component( U, S, small );
-    %Filter the component
-    seqdists = get_distances_sequential( dists );
-    filtered = filter_logistic_sequential( fiedler, seqdists );
-    %Partition where there are least density over the fiedler vector
-    domains = fiedler_partition_ttest( filtered, 1/length(filtered) );
-    %fprintf('printing results\n');
-    dlmwrite(outfile, [[1:length(domains)]', domains + 1], '\t');
+    % Collapse tensor
+    dists = collapse_tensor(disttensor, weightvector);
+    
+%     % This below need to be redefined; we only read distances, so the
+%     % following part needs to be converting the distances tensor read to a
+%     % similarity matrix, using the optimal cutoff given the average
+%     % similarity matrix... You get my drift...
+%     dists = get_distances( positions );
+%     %Get the optimal similarity function parameter
+%     %fprintf('getting similarity sigma\n');
+     similarity_sigma = getcutoff( 0, max(max(dists)), 0.001, @entropy_logistic, dists );
+%     [ similarity_sigma, m ] = get_binary_topology_cutoff( dists, similarity_sigma );
+%     fprintf('Sigma: %.2f\nNo. Clusters: %d\n', similarity_sigma, m);
+%     %Form the laplacian
+%     %fprintf('getting laplacian\n');
+%     laplacian = getlaplacian( dists, @sim_logistic, similarity_sigma );
+%     %Do the decomposition and select the fiedler vector
+%     [U, S, V] = svd(laplacian);
+%     fiedler = select_component( U, S, small );
+%     %Filter the component
+%     seqdists = get_distances_sequential( dists );
+%     filtered = filter_logistic_sequential( fiedler, seqdists );
+%     %Partition where there are least density over the fiedler vector
+%     domains = fiedler_partition_ttest( filtered, 1/length(filtered) );
+%     %fprintf('printing results\n');
+%     dlmwrite(outfile, [[1:length(domains)]', domains + 1], '\t');
 end
 
 % Following functions are just copy pasted from the domains repository in
@@ -56,7 +59,28 @@ function [ t ] = readtensor( infile )
 %   pose.
     t = dlmread(infile);
     s = size(t);
-    t = reshape(t', [s(2) s(2) S(1)/S(2)]);
+    t = reshape(t', [s(2) s(2) s(1)/s(2)]);
+end
+
+%% T E N S O R C O L L A P S E
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+function [ out_tensor ] = collapse_tensor ( in_tensor, weights )
+    s = size(in_tensor);
+    out_tensor = zeros(s(1), s(1));
+    % This might be slow; there might be another better way to handle the
+    % tensor collapse.
+    for i=1:s(3)
+        out_tensor = out_tensor + (in_tensor(:, :, i) * weights(i));
+    end
+end
+
+function [ T ] = logistic_collapse ( tensor, weights, sigma )
+    s = size(tensor);
+    T = zeros(s(1), 1);
+    for i=1:length(weights)
+        T = T + weights(i) * sum(sim_logistic(tensor(:, :, i), sigma), 2);
+    end
 end
 
 %% C U T O F F - S E A R C H
@@ -73,6 +97,19 @@ function [ x ] = getcutoff( minimum, maximum, tol, fun, data )
     fb = fun(b, data);
     fc = fun(c, data);
     x = getcutoff_recursive(a, b, c, fa, fb, fc, tol, resphi, fun, data);
+end
+
+function [ x ] = getcutoff_tensor( minimum, maximum, tol, fun, data, weights )
+%GETCUTOFF_GAUSSIAN Summary of this function goes here
+%   Detailed explanation goes here
+    resphi = 2 - ((1 + sqrt(5)) / 2);
+    a = minimum;
+    b = a + resphi * (maximum - minimum);
+    c = maximum;
+    fa = fun(a, data, weights);
+    fb = fun(b, data, weights);
+    fc = fun(c, data, weights);
+    x = getcutoff_recursive_tensor(a, b, c, fa, fb, fc, tol, resphi, fun, data, weights);
 end
 
 function [ x ] = getcutoff_recursive( x1, x2, x3, f1, f2, f3, t, p, fun, data )
@@ -124,6 +161,80 @@ function [ x ] = getcutoff_recursive( x1, x2, x3, f1, f2, f3, t, p, fun, data )
     end
 end
 
+function [ x ] = getcutoff_recursive_tensor( x1, x2, x3, f1, f2, f3, t, p, fun, data, weights )
+%GETCUTOFF Summary of this function goes here
+%   Detailed explanation goes here
+    %fprintf('getcutoff_recursive, x1=%0.2f x2=%0.2f x3=%0.2f\n', x1, x2, x3);
+    if (x3 - x2 > x2 - x1)
+        %new probe point is between x2 and x3
+        x = x2 + p * (x3 - x2);
+        if(abs(x3 - x1) < t * (abs(x2) + abs(x)))
+        x = (x3 + x1)/2;
+        return;
+        end
+        fx = fun(x, data, weights);
+        if(fx == f2)
+            x = (x3 + x1)/2;
+            return;
+        end
+        if(fx < f2)
+            % x1 is outside new interval
+            x = getcutoff_recursive_tensor(x2, x, x3, f2, fx, f3, t, p, fun, data, weights);
+            return;
+        else
+            % x3 is outside new interval
+            x = getcutoff_recursive_tensor(x1, x2, x, f1, f2, fx, t, p, fun, data, weights);
+            return;
+        end
+    else
+        %new probe point is between x1 and x2
+        x = x2 - p * (x2 - x1);
+        if(abs(x3 - x1) < t * (abs(x2) + abs(x)))
+            x = (x3 + x1)/2;
+            return;
+        end
+        fx = fun(x, data, weights);
+        if(fx == f2)
+            x = (x3 + x1)/2;
+            return;
+        end
+        if(fx < f2)
+            % x3 is outside new interval
+            x = getcutoff_recursive_tensor(x1, x, x2, f1, fx, f2, t, p, fun, data, weights);
+            return;
+        else
+            % x1 is outside new interval
+            x = getcutoff_recursive_tensor(x, x2, x3, fx, f2, f3, t, p, fun, data, weights);
+            return;
+        end
+    end
+end
+
+function [ h ] = entropy_logistic( sigma, data )
+%ENTROPY_GAUSSIAN Summary of this function goes here
+%   Detailed explanation goes here
+    e = 1 ./ (ones(size(data)) + exp(data - (sigma .* ones(size(data)))));
+    %e = 1 ./ (0.5 .* (ones(size(data)) + exp(data - (sigma .* ones(size(data))))));
+    %e(e > 1) = 1;
+    p = sum(e, 2);
+    p = p./sum(p);
+    h = - p' *  log(p);
+end
+
+function [ h ] = entropy_logistic_tensor( sigma, data, weights )
+%ENTROPY_GAUSSIAN Summary of this function goes here
+%   Detailed explanation goes here
+    h = 0;
+    for i=1:length(weights)
+        e = 1 ./ (ones(size(data(:, :, i))) + exp(data(:, :, i) - (sigma .* ones(size(data(:, :, i))))));
+        %e = 1 ./ (0.5 .* (ones(size(data)) + exp(data - (sigma .* ones(size(data))))));
+        %e(e > 1) = 1;
+        p = sum(e, 2);
+        p = p./sum(p);
+        h = h - weights(i) * (p' *  log(p));
+    end
+end
+
 function [ s, m ] = get_binary_topology_cutoff( dst, s1 )
 %GET_BINARY_TOPOLOGY_CUTOFF Summary of this function goes here
 %   Detailed explanation goes here
@@ -137,6 +248,23 @@ function [ s, m ] = get_binary_topology_cutoff( dst, s1 )
         s = s - step;
         T = sum(sim_logistic(dst, s), 2);
         m = length(topology_local_maximum_exhaustive(T, dst, s));
+    end
+end
+
+function [ s, m ] = get_binary_topology_cutoff_tensor( tensor, weights, s1 )
+%GET_BINARY_TOPOLOGY_CUTOFF Summary of this function goes here
+%   Detailed explanation goes here
+    % Behöver kolla matematiken här; eftersom vi i princip var beroende av
+    % att sim_logistic kördes med samma cutoff som 
+    s = s1;
+    step = (s1 - 5.0) / 50;
+    minimum = step + 5.0;
+    T = logistic_collapse( tensor, weights, s );
+    m = length(topology_local_maximum_exhaustive_tensor(T, tensor, weights, s));
+    while m < 2 && s > minimum
+        s = s - step;
+        T = sum(sim_logistic(tensor, s), 2);
+        m = length(topology_local_maximum_exhaustive_tensor(T, tensor, weights, s));
     end
 end
 
@@ -154,6 +282,26 @@ function [ M ] = topology_local_maximum_exhaustive( T, dst, s )
     M = [];
     for node = 1:length(T)
         local_weights = sim_logistic(dst(:,node), s);
+        local_topology = local_weights .* T;
+        [Y, I] = max(local_topology);
+        if I == node
+            M = [M; node];
+        end
+    end
+end
+
+function [ M ] = topology_local_maximum_exhaustive_tensor( T, tensor, weights, s )
+%TOPOLOGY_LOCAL_MAXIMUM Summary of this function goes here
+%   Detailed explanation goes here
+    
+    M = [];
+    tensor_size = size(tensor);
+    
+    for node = 1:length(T)
+        local_weights = zeros(tensor_size(1), 1);
+        for i=1:tensor_size(3)
+            local_weights = local_weights + weights(i) * sim_logistic(tensor(:,node,i), s);
+        end
         local_topology = local_weights .* T;
         [Y, I] = max(local_topology);
         if I == node
