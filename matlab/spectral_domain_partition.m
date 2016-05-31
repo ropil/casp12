@@ -1,4 +1,4 @@
-function [ disttensor, weightvector, dists, similarity_sigma ] = spectral_domain_partition( intensor, invector, outfile, small )
+function [ disttensor, weightvector, dists, similarity_sigma, m, laplacian, U, S, V, fiedler, filtered, domains ] = spectral_domain_partition( intensor, invector, outfile, small )
 %SPECTRAL_DOMAIN_PARTITION Decomposes pdb structure from distance matrix
 %into domain definitions, using the logistic similarity function.
 %
@@ -17,30 +17,25 @@ function [ disttensor, weightvector, dists, similarity_sigma ] = spectral_domain
     weightvector = dlmread(invector);
     % Collapse tensor
     dists = collapse_tensor(disttensor, weightvector);
-    
-%     % This below need to be redefined; we only read distances, so the
-%     % following part needs to be converting the distances tensor read to a
-%     % similarity matrix, using the optimal cutoff given the average
-%     % similarity matrix... You get my drift...
-%     dists = get_distances( positions );
-%     %Get the optimal similarity function parameter
-%     %fprintf('getting similarity sigma\n');
-     similarity_sigma = getcutoff( 0, max(max(dists)), 0.001, @entropy_logistic, dists );
-%     [ similarity_sigma, m ] = get_binary_topology_cutoff( dists, similarity_sigma );
+
+    %Get the optimal similarity function parameter
+    similarity_sigma = getcutoff( 0, max(max(dists)), 0.001, @entropy_logistic, dists );
+    [ similarity_sigma, m ] = get_binary_topology_cutoff( dists, similarity_sigma );
 %     fprintf('Sigma: %.2f\nNo. Clusters: %d\n', similarity_sigma, m);
-%     %Form the laplacian
-%     %fprintf('getting laplacian\n');
-%     laplacian = getlaplacian( dists, @sim_logistic, similarity_sigma );
-%     %Do the decomposition and select the fiedler vector
-%     [U, S, V] = svd(laplacian);
-%     fiedler = select_component( U, S, small );
+    %Form the laplacian
+    laplacian = getlaplacian( dists, @sim_logistic, similarity_sigma );
+    %Do the decomposition and select the fiedler vector
+    [U, S, V] = svd(laplacian);
+    fiedler = select_component( U, S, small );
 %     %Filter the component
 %     seqdists = get_distances_sequential( dists );
 %     filtered = filter_logistic_sequential( fiedler, seqdists );
-%     %Partition where there are least density over the fiedler vector
-%     domains = fiedler_partition_ttest( filtered, 1/length(filtered) );
-%     %fprintf('printing results\n');
-%     dlmwrite(outfile, [[1:length(domains)]', domains + 1], '\t');
+    % Don't filter
+    filtered = fiedler;
+    %Partition where there are least density over the fiedler vector
+    domains = fiedler_partition_ttest( filtered, 1/length(filtered) );
+    % Save results
+    dlmwrite(outfile, [[1:length(domains)]', domains + 1], '\t');
 end
 
 % Following functions are just copy pasted from the domains repository in
