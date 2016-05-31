@@ -75,11 +75,11 @@ function [ out_tensor ] = collapse_tensor ( in_tensor, weights )
     end
 end
 
-function [ T ] = logistic_collapse ( tensor, weights, sigma )
+function [ T ] = logistic_centrality_tensor ( tensor, weights, sigma )
     s = size(tensor);
-    T = zeros(s(1), 1);
+    T = zeros(s(1), s(3));
     for i=1:length(weights)
-        T = T + weights(i) * sum(sim_logistic(tensor(:, :, i), sigma), 2);
+        T(i) = weights(i) * sum(sim_logistic(tensor(:, :, i), sigma), 2);
     end
 end
 
@@ -259,11 +259,11 @@ function [ s, m ] = get_binary_topology_cutoff_tensor( tensor, weights, s1 )
     s = s1;
     step = (s1 - 5.0) / 50;
     minimum = step + 5.0;
-    T = logistic_collapse( tensor, weights, s );
+    T = logistic_centrality_tensor( tensor, weights, s );
     m = length(topology_local_maximum_exhaustive_tensor(T, tensor, weights, s));
     while m < 2 && s > minimum
         s = s - step;
-        T = sum(sim_logistic(tensor, s), 2);
+        T = logistic_centrality_tensor( tensor, weights, s );
         m = length(topology_local_maximum_exhaustive_tensor(T, tensor, weights, s));
     end
 end
@@ -298,11 +298,12 @@ function [ M ] = topology_local_maximum_exhaustive_tensor( T, tensor, weights, s
     tensor_size = size(tensor);
     
     for node = 1:length(T)
-        local_weights = zeros(tensor_size(1), 1);
+        local_topology = zeros(tensor_size(1), 1);
+        % for every sheat in the tensor, calculate the centrality; sum up
+        % the weighted mean
         for i=1:tensor_size(3)
-            local_weights = local_weights + weights(i) * sim_logistic(tensor(:,node,i), s);
+            local_topology = local_topology + weights(i) * (sim_logistic(tensor(:,node,i), s) .* T(i));
         end
-        local_topology = local_weights .* T;
         [Y, I] = max(local_topology);
         if I == node
             M = [M; node];
