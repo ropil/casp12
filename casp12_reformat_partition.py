@@ -17,7 +17,7 @@ def printDomains(domainresidues):
         for residue in domain:
             if previous < int(residue) - 1:
                 print(" {} {}".format(previous, int(residue)), end="")
-            elif residue == domain[-1]:
+            if residue == domain[-1]:
                 print(" {}".format(int(residue)))
             previous = int(residue)
 
