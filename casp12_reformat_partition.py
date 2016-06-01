@@ -15,10 +15,10 @@ def printDomains(domainresidues):
         previous = int(domain[0])
         print(str(previous), end="")
         for residue in domain:
-            if not previous < int(residue) - 1 or not previous == int(residue):
-                print("\t{}".format(int(residue)), end="")
+            if previous < int(residue) - 1:
+                print(" {}".format(int(residue)), end="")
             elif residue == domain[-1]:
-                print("\t{}".format(residue))
+                print(" {}".format(int(residue)))
             previous = int(residue)
 
 
