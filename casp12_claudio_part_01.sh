@@ -22,7 +22,7 @@ for TARGETDIR in `find ${directory}/ -maxdepth 1 -type d -regex ".*/T[0-9]+"`;do
 	done;
 
 	# Check so that its not already done
-	if [ -e ${outputdir}/domains.def ]; then
+	if [ -e ${outputdir}/${domains} ]; then
 		skip=2;
 	fi;
 
