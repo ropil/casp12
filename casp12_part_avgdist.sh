@@ -83,3 +83,5 @@ casp12_qa_vector.py -${NORM} ${VECTORQA} > ${NORMQA};
 # Perform the spectral partitioning
 ###################################
 casp12_matlab_exec.sh ${PART} ${TENSOR} ${NORMQA} ${PARTITIONFILE} ${SMALL};
+casp12_reformat_partition.py ${PARTITIONFILE} `head -n 1 ${ORDERFILE}` \
+  > ${DOMAINFILE};
