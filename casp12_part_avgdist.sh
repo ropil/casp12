@@ -26,6 +26,8 @@ TENSOR=${DIR}/tensor.dat;
 RAWQA=${DIR}/qa_raw.dat;
 SORTEDQA=${DIR}/qa_sort.dat;
 VECTORQA=${DIR}/qa_vector.dat;
+PARTITIONFILE=${DIR}/partition.dat;
+SMALL="10^-5";
 
 mkdir -p ${DIR};
 
@@ -73,3 +75,7 @@ for server in `awk -F / '{print $NF}' ${ORDERFILE}`; do
 	grep "^${server}\s\+[[:digit:]]\+\.[[:digit:]]\+" ${QA} >> ${SORTEDQA};
 done;
 awk '{print $2}' ${SORTEDQA} > ${VECTORQA};
+
+# Perform the spectral partitioning
+###################################
+casp12_matlab_exec.sh ${PART} ${TENSOR} ${VECTORQA} ${PARTITIONFILE} ${SMALL};
