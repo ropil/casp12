@@ -1,17 +1,20 @@
 #!/bin/bash
+set -e;
 
-if [ -z $3 ]; then
-	echo "USAGE: $0 <DIR> <QA> <PDB>[ <PDB>[...]]";
+if [ -z $4 ]; then
+	echo "USAGE: $0 <partitioner> <DIR> <QA> <PDB>[ <PDB>[...]]";
 	echo "";
+	echo "  partitioner - script to use for partitioning (executable)";
 	echo "  DIR - output directory where all results are spammed";
 	echo "  QA - path to quality assesment file to use";
 	echo "  PDB - model files, at least one";
 	exit 1;
 fi
 
-DIR=$1;
-QA=$2;
-MODELS=${@:3};
+PART=$1
+DIR=$2;
+QA=$3;
+MODELS=${@:4};
 
 ORDERFILE=${DIR}/model_order.dat;
 DOMAINFILE=${DIR}/domains.def;
@@ -19,7 +22,7 @@ ATOMFILE=${DIR}/atoms.dat;
 LENGTHFILE=${DIR}/length.dat;
 DOMINANTFILE=${DIR}/dominant.dat;
 MODELDIR=${DIR}/selected;
-TENSIR=${DIR}/tensor.dat;
+TENSOR=${DIR}/tensor.dat;
 RAWQA=${DIR}/qa_raw.dat;
 SORTEDQA=${DIR}/qa_sort.dat;
 VECTORQA=${DIR}/qa_vector.dat;
@@ -36,7 +39,7 @@ grep -c ^ATOM.*CA.* ${MODELS} > ${ATOMFILE};
 awk -F : '{print $2}' ${ATOMFILE} > ${LENGTHFILE};
 rm -f ${DOMINANTFILE};
 # For each unique length, count it's occurences
-for i in `sort -u ${get}_len.dat`; do
+for i in `sort -u ${LENGTHFILE}`; do
 	echo ${i} `grep -c ^${i}$ ${LENGTHFILE}` >> ${DOMINANTFILE};
 done;
 dominant=`sort -nrk 2 ${DOMINANTFILE} | head -n 1 | awk '{print $1}'`;
@@ -67,6 +70,6 @@ cat ${ORDERFILE} | xargs casp12_pdb_tensor.py > ${TENSOR};
 	#| awk '{print $1, $2}' > ${RAWQA};
 rm -f ${SORTEDQA};
 for server in `awk -F / '{print $NF}' ${ORDERFILE}`; do
-	grep "^${server}\s\+[[:digit:]]\+\.[[:digit:]]\+" ${QA} >> ${sorted};
+	grep "^${server}\s\+[[:digit:]]\+\.[[:digit:]]\+" ${QA} >> ${SORTEDQA};
 done;
 awk '{print $2}' ${SORTEDQA} > ${VECTORQA};
