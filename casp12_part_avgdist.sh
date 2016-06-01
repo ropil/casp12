@@ -2,11 +2,12 @@
 set -e;
 
 if [ -z $4 ]; then
-	echo "USAGE: $0 <partitioner> <DIR> <QA> <PDB>[ <PDB>[...]]";
+	echo "USAGE: $0 <partitioner> <DIR> <QA> <NORM> <PDB>[ <PDB>[...]]";
 	echo "";
 	echo "  partitioner - script to use for partitioning (executable)";
 	echo "  DIR - output directory where all results are spammed";
 	echo "  QA - path to quality assesment file to use";
+	echo "  NORM - how to normalize the QA (sum)";
 	echo "  PDB - model files, at least one";
 	exit 1;
 fi
@@ -14,7 +15,8 @@ fi
 PART=$1
 DIR=$2;
 QA=$3;
-MODELS=${@:4};
+NORM=$4;
+MODELS=${@:5};
 
 ORDERFILE=${DIR}/model_order.dat;
 DOMAINFILE=${DIR}/domains.def;
@@ -26,6 +28,7 @@ TENSOR=${DIR}/tensor.dat;
 RAWQA=${DIR}/qa_raw.dat;
 SORTEDQA=${DIR}/qa_sort.dat;
 VECTORQA=${DIR}/qa_vector.dat;
+NORMQA=${DIR}/qa_normed.dat;
 PARTITIONFILE=${DIR}/partition.dat;
 SMALL="10^-5";
 
@@ -75,7 +78,8 @@ for server in `awk -F / '{print $NF}' ${ORDERFILE}`; do
 	grep "^${server}\s\+[[:digit:]]\+\.[[:digit:]]\+" ${QA} >> ${SORTEDQA};
 done;
 awk '{print $2}' ${SORTEDQA} > ${VECTORQA};
+casp12_qa_vector.py -${NORM} ${VECTORQA} > ${NORMQA};
 
 # Perform the spectral partitioning
 ###################################
-casp12_matlab_exec.sh ${PART} ${TENSOR} ${VECTORQA} ${PARTITIONFILE} ${SMALL};
+casp12_matlab_exec.sh ${PART} ${TENSOR} ${NORMQA} ${PARTITIONFILE} ${SMALL};
