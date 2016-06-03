@@ -40,4 +40,6 @@ for TARGETDIR in `find ${directory}/ -maxdepth 1 -type d -regex ".*/T[0-9]+"`;do
 	# Partition it otherwise
 	echo "PARTITIONING ${TARGETDIR} -> ${outputdir}";
 	cat ${models} | xargs casp12_partition.sh spectral_domain_partition_filtering ${outputdir} ${qa} sum 1>/dev/null 2>/dev/null;
+	# Draw the partition...
+	casp12_matlab_exec.sh draw_partition ${outputdir}/partition.dat ${outputdir}/partition.png 1>/dev/null 2>/dev/null;
 done;
