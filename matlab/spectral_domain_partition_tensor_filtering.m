@@ -73,7 +73,7 @@ function [ T ] = logistic_centrality_tensor ( tensor, weights, sigma )
     s = size(tensor);
     T = zeros(s(1), s(3));
     for i=1:length(weights)
-        T(i) = weights(i) * sum(sim_logistic(tensor(:, :, i), sigma), 2);
+        T(:,i) = weights(i) * sum(sim_logistic(tensor(:, :, i), sigma), 2);
     end
 end
 
