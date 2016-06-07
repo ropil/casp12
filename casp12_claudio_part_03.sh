@@ -8,7 +8,8 @@ output=/nfs/robban/CASP12/claudio_03_stage2;
 partitioner=spectral_domain_partition_tensor_filtering_adjacency;
 domains=domains.def;
 
-source ${HOME}/.bashrc
+# Setup the paths
+source ${HOME}/.worktool;
 PATH=`dirname $0`:${PATH};
 
 for TARGETDIR in `find ${directory}/ -maxdepth 1 -type d -regex ".*/T[0-9]+"`;do

@@ -1,11 +1,16 @@
 #!/bin/bash
-set -e;
+
+#set -e;
 
 directory=/nfs/claudio/CASP12;
 modelsuffix=server_models.stage2/pcons.in;
 qasuffix=server_models.stage2/pcomb.full;
 output=/nfs/robban/CASP12/claudio_01_stage2;
 domains=domains.def;
+userhome=/home/ropil;
+
+# Setup the paths
+source ${HOME}/.worktool;
 PATH=`dirname $0`:${PATH};
 
 for TARGETDIR in `find ${directory}/ -maxdepth 1 -type d -regex ".*/T[0-9]+"`;do
