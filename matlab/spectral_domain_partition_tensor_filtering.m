@@ -291,7 +291,7 @@ function [ M ] = topology_local_maximum_exhaustive_tensor( T, tensor, weights, s
     M = [];
     tensor_size = size(tensor);
     
-    for node = 1:length(T)
+    for node = 1:tensor_size(1)
         local_topology = zeros(tensor_size(1), 1);
         % for every sheat in the tensor, calculate the centrality; sum up
         % the weighted mean
