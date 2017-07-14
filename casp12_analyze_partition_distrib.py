@@ -46,7 +46,7 @@ def create_database(db=":memory:"):
     CREATE TABLE segment(start int, stop int, len int, domain int REFERENCES domain(num), target text REFERENCES domain(target), casp int REFERENCES domain(casp), PRIMARY KEY (start, domain, target, casp));
     CREATE TRIGGER segment_length_insert BEFORE INSERT ON segment FOR EACH ROW BEGIN UPDATE NEW SET len = stop - start + 1; END;
     CREATE TRIGGER segment_length_update BEFORE UPDATE ON segment FOR EACH ROW BEGIN UPDATE NEW SET len = stop - start + 1; END;
-    CREATE VIEW domain_size (casp, target, domain, dlen, nseg) AS SELECT domain.casp, domain.target, domain.num, SUM(segment.len), COUNT(*) FROM domain INNER JOIN segment ON (domain.casp = segment.casp, domain.target = segment.target, domain.num = segment.domain) GROUP BY domain.casp, domain.target, domain.num ORDER BY dlen;
+    CREATE VIEW domain_size (casp, target, domain, dlen, nseg) AS SELECT domain.casp, domain.target, domain.num, SUM(segment.len), COUNT(*) FROM domain INNER JOIN segment ON (domain.casp = segment.casp AND domain.target = segment.target AND domain.num = segment.domain) GROUP BY domain.casp, domain.target, domain.num;
     '''
 
     database = connect(db)
@@ -75,7 +75,7 @@ def create_database(db=":memory:"):
         "CREATE TRIGGER segment_length_update AFTER UPDATE ON segment FOR EACH ROW BEGIN UPDATE segment SET len = NEW.stop - NEW.start + 1 WHERE casp = NEW.casp AND target = NEW.target AND domain = NEW.domain AND start = NEW.start AND stop = NEW.stop; END;")
     # Domain size view, sorted by largest domain
     database.execute(
-        "CREATE VIEW domain_size (casp, target, domain, dlen, nseg) AS SELECT domain.casp, domain.target, domain.num, SUM(segment.len), COUNT(*) FROM domain INNER JOIN segment ON (domain.casp = segment.casp, domain.target = segment.target, domain.num = segment.domain) GROUP BY domain.casp, domain.target, domain.num ORDER BY dlen;")
+        "CREATE VIEW domain_size (casp, target, domain, dlen, nseg) AS SELECT domain.casp, domain.target, domain.num, SUM(segment.len), COUNT(*) FROM domain INNER JOIN segment ON (domain.casp = segment.casp AND domain.target = segment.target AND domain.num = segment.domain) GROUP BY domain.casp, domain.target, domain.num;")
     return database
 
 
@@ -116,7 +116,7 @@ def store_domains(domains, database, casp=12):
                     database.execute(
                         'INSERT INTO domain (casp, target, num) VALUES ({}, "{}", {});'.format(casp, target, num))
                 for segment in domain:
-                    print(segment, type(segment))
+                    # print(segment, type(segment))
                     database.execute('INSERT INTO segment (casp, target, domain, start, stop) VALUES ({}, "{}", {}, {}, {});'.format(casp, target, num, segment[0], segment[1]))
 
 
@@ -142,8 +142,6 @@ def main():
     parser = ArgumentParser(
         description="Analyze domain partition distribution in a target set" +
                     " and store results in sqlite3.")
-    parser.add_argument(
-        "-a", action="store_true", default=False, help="Prints nothing")
     parser.add_argument(
         "-casp", nargs=1, default=["12"], metavar="INT",
         help="CASP experiment serial, default=12")
@@ -186,8 +184,8 @@ def main():
             thistarget = nameregex.search(f).group(1)
         domains[thistarget] = read_domain(infile)
 
-    # Dump read domains
-        print_domains(domains)
+        # # Dump read domains
+        # print_domains(domains)
 
     # Read database if specified, or create one in memory
     db = arguments.db[0]
