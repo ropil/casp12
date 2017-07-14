@@ -32,7 +32,7 @@ def get_version_str():
 
 
 # Library functions
-def create_database():
+def create_database(db=":memory:"):
     # Create in-memory
     """Creates the database, in memory, to use for analyzing domain partitions
 
@@ -49,7 +49,7 @@ def create_database():
     CREATE VIEW domain_size (casp, target, domain, dlen, nseg) AS SELECT domain.casp, domain.target, domain.num, SUM(segment.len), COUNT(*) FROM domain INNER JOIN segment ON (domain.casp = segment.casp, domain.target = segment.target, domain.num = segment.domain) GROUP BY domain.casp, domain.target, domain.num ORDER BY dlen;
     '''
 
-    database = connect(":memory:")
+    database = connect(db)
     # CASP table
     database.execute("CREATE TABLE casp(id int PRIMARY KEY);")
     # CASP targets table
@@ -65,13 +65,17 @@ def create_database():
                      "casp int REFERENCES target(casp), " +
                      "PRIMARY KEY (num, target, casp));")
     # Segment definitions table
-    database.execute("CREATE TABLE segment(start int, stop int, len int, domain int REFERENCES domain(num), target text REFERENCES domain(target), casp int REFERENCES domain(casp), PRIMARY KEY (start, domain, target, casp));")
+    database.execute(
+        "CREATE TABLE segment(start int, stop int, len int, domain int REFERENCES domain(num), target text REFERENCES domain(target), casp int REFERENCES domain(casp), PRIMARY KEY (start, domain, target, casp));")
     # Synthetic variables
     # Triggers for segment length calculation
-    database.execute("CREATE TRIGGER segment_length_insert BEFORE INSERT ON segment FOR EACH ROW BEGIN UPDATE NEW SET len = stop - start + 1; END;")
-    database.execute("CREATE TRIGGER segment_length_update BEFORE UPDATE ON segment FOR EACH ROW BEGIN UPDATE NEW SET len = stop - start + 1; END;")
+    database.execute(
+        "CREATE TRIGGER segment_length_insert AFTER INSERT ON segment FOR EACH ROW BEGIN UPDATE segment SET len = NEW.stop - NEW.start + 1 WHERE casp = NEW.casp AND target = NEW.target AND domain = NEW.domain AND start = NEW.start AND stop = NEW.stop; END;")
+    database.execute(
+        "CREATE TRIGGER segment_length_update AFTER UPDATE ON segment FOR EACH ROW BEGIN UPDATE segment SET len = NEW.stop - NEW.start + 1 WHERE casp = NEW.casp AND target = NEW.target AND domain = NEW.domain AND start = NEW.start AND stop = NEW.stop; END;")
     # Domain size view, sorted by largest domain
-    database.execute("CREATE VIEW domain_size (casp, target, domain, dlen, nseg) AS SELECT domain.casp, domain.target, domain.num, SUM(segment.len), COUNT(*) FROM domain INNER JOIN segment ON (domain.casp = segment.casp, domain.target = segment.target, domain.num = segment.domain) GROUP BY domain.casp, domain.target, domain.num ORDER BY dlen;")
+    database.execute(
+        "CREATE VIEW domain_size (casp, target, domain, dlen, nseg) AS SELECT domain.casp, domain.target, domain.num, SUM(segment.len), COUNT(*) FROM domain INNER JOIN segment ON (domain.casp = segment.casp, domain.target = segment.target, domain.num = segment.domain) GROUP BY domain.casp, domain.target, domain.num ORDER BY dlen;")
     return database
 
 
@@ -91,6 +95,31 @@ def read_domain(infile):
     return domains
 
 
+def store_domains(domains, database, casp=12):
+    # Check if CASP is present, or create it
+    if database.execute(
+            "SELECT EXISTS (SELECT * FROM casp WHERE id = {} LIMIT 1);".format(
+                casp)).fetchone()[0] == 0:
+        database.execute("INSERT INTO casp (id) VALUES ({});".format(casp))
+    for target in domains:
+        # check if target is present, or create it
+        if database.execute(
+                'SELECT EXISTS (SELECT * FROM target WHERE casp = {} AND id = "{}" LIMIT 1);'.format(
+                    casp, target)).fetchone()[0] == 0:
+            database.execute(
+                'INSERT INTO target (casp, id) VALUES ({}, "{}");'.format(casp, target))
+            for (num, domain) in enumerate(domains[target]):
+                # check if domain is present, or create it
+                if database.execute(
+                        'SELECT EXISTS (SELECT * FROM domain WHERE casp = {} AND target = "{}" AND num = {} LIMIT 1);'.format(
+                            casp, target, num)).fetchone()[0] == 0:
+                    database.execute(
+                        'INSERT INTO domain (casp, target, num) VALUES ({}, "{}", {});'.format(casp, target, num))
+                for segment in domain:
+                    print(segment, type(segment))
+                    database.execute('INSERT INTO segment (casp, target, domain, start, stop) VALUES ({}, "{}", {}, {}, {});'.format(casp, target, num, segment[0], segment[1]))
+
+
 def print_domains(domains):
     """Regurgitates what is already read, in text format: <target> <seg> <seg> .
 
@@ -108,12 +137,19 @@ def print_domains(domains):
 # Main; for callable scripts
 def main():
     from argparse import ArgumentParser
-    from sys import argv, stdin
+    from sys import argv, stdin, stdout
+    from os.path import isfile
     parser = ArgumentParser(
         description="Analyze domain partition distribution in a target set" +
                     " and store results in sqlite3.")
     parser.add_argument(
         "-a", action="store_true", default=False, help="Prints nothing")
+    parser.add_argument(
+        "-casp", nargs=1, default=["12"], metavar="INT",
+        help="CASP experiment serial, default=12")
+    parser.add_argument(
+        "-db", nargs=1, default=[None], metavar="FILE",
+        help="Database to use, default=STDOUT")
     parser.add_argument(
         "-nameregex", nargs=1, default=["^.*/(T\d{4})/.*$"], metavar="TEXT",
         help="Regex to use for extracting targetnames from file pathnames" +
@@ -132,6 +168,8 @@ def main():
         files = [stdin]
 
     # Set variables here
+    casp = int(arguments.casp[0])
+
     target = arguments.target[0]
     if target is None:
         target = 'UNK'
@@ -149,7 +187,31 @@ def main():
         domains[thistarget] = read_domain(infile)
 
     # Dump read domains
-    print_domains(domains)
+        print_domains(domains)
+
+    # Read database if specified, or create one in memory
+    db = arguments.db[0]
+    if db is not None:
+        # If database already exists; just open it
+        if isfile(db):
+            database = connect(db)
+        else:
+            #otherwise create a new one
+            database = create_database(db)
+    else:
+        database = create_database()
+
+    # Write data to database
+    store_domains(domains, database, casp=casp)
+
+    # commit and close database,
+    if db is not None:
+        database.commit()
+        database.close()
+    else:
+        # or blurt sql-dump to stdout, if no database specified
+        for line in database.iterdump():
+            print(line)
 
 
 if __name__ == '__main__':
