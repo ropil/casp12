@@ -23,4 +23,38 @@ def find_models(directory, regex="\S+_TS\d+\.pdb\Z"):
     return models
 
 
-def write_pcons_domain_files(target, database):
+def pcons_domain_specifications(casp, target, database):
+    target_length = database.execute(
+        'SELECT len FROM target WHERE casp="{}" AND id="{};"'.format(casp,
+                                                                     target))[
+        0][
+        0]
+    ignore_residues = {}
+
+    # Sum domain lengths if target length not specified
+    if target_length is None:
+        target_length = database.execute(
+            "SELECT SUM(dlen) FROM domain_size WHERE casp={} AND target='{}' GROUP BY casp, target;".format(
+                casp, target))[0][0]
+
+    # For every domain
+    for (domain) in database.execute(
+            "SELECT num FROM domain WHERE casp={} AND target='{}';".format(casp,
+                                                                           target)):
+        # Make an ignore-all template
+        ignore_residues[domain] = set([i for i in range(1, target_length + 1)])
+        # Collect all domain residues from all segments
+        domain_residues = set()
+        for (start, stop) in database.exectue(
+                "SELECT start, stop FROM segment WHERE casp={} AND target='{}' AND domain={};".format(
+                    casp, target, domain)):
+            domain_residues = domain_residues.union(range(start, stop + 1))
+        # Only ignore non-domain residues
+        ignore_residues[domain] = ignore_residues[domain] - domain_residues
+        # Convert to a writable string
+        ignore_residues[domain] = list(ignore_residues[domain])
+        ignore_residues[domain].sort()
+        ignore_residues[domain] = "\n".join(
+            [str(i) for i in ignore_residues[domain]])
+
+    return ignore_residues
