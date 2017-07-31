@@ -23,6 +23,21 @@ def find_models(directory, regex="\S+_TS\d+\.pdb\Z"):
     return models
 
 
+def guess_casp_experiment(directory, regex="CASP(\d+)"):
+    """Guesses CASP experiment integer ID
+
+    :param directory: full path to CASP files directory
+    :param regex: expected nomenclature of CASP directory name
+    :return: None if no regex match, integer CASP experiment ID otherwise
+    """
+    casp_guess = compile(regex)
+    caspdir = path.split(directory)[-1]
+    casphit = casp_guess.search(caspdir)
+    if casphit:
+        return int(casphit[1])
+    return None
+
+
 def pcons_domain_specifications(casp, target, database):
     target_length = database.execute(
         'SELECT len FROM target WHERE casp="{}" AND id="{};"'.format(casp,
@@ -58,3 +73,20 @@ def pcons_domain_specifications(casp, target, database):
             [str(i) for i in ignore_residues[domain]])
 
     return ignore_residues
+
+
+def pcons_write_domain_file(directory, ignore_residues, method=None):
+    """Write a pcons domain ignore file
+
+    :param directory: target model directory
+    :param ignore_residues: dictionary with domains as keys and ignore residue
+                            string lists as values
+    :param method: partition method type to append to filename,
+                   default=no extension
+    """
+    method_ext = ""
+    if method is not None:
+        method_ext = "_" + method
+    for domain in ignore_residues:
+        with open(path.join(directory, "pcons_domain_{}{}.ign".format(domain, method_ext)), 'w') as ignore_file:
+            ignore_file.write(ignore_residues[domain])
