@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-from casp12.files.targets import find_targets, guess_casp_experiment, pcons_domain_specifications, pcons_write_domain_file
+from casp12.files.pcons import pcons_domain_specifications, pcons_write_domain_file
+from casp12.files.targets import find_targets, guess_casp_experiment
 from sqlite3 import connect
 
 '''
@@ -41,8 +42,6 @@ def main():
     parser = ArgumentParser(
         description="Write pcons domain definition files into CASP datadirs")
     parser.add_argument(
-        "-a", action="store_true", default=False, help="Prints nothing")
-    parser.add_argument(
         "-db", nargs=1, metavar="file",
         help="Domain definition database")
     parser.add_argument(
@@ -76,7 +75,8 @@ def main():
     # Read domain definitions and write pcons ignore files
     database = connect(sqlite_file)
     for target in targets:
-        ignore_residues = pcons_domain_specifications(target_casp[target], target, database)
+        ignore_residues = pcons_domain_specifications(target_casp[target],
+                                                      target, database)
         pcons_write_domain_file(targets[target], ignore_residues, method=method)
 
 
