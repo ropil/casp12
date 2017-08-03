@@ -26,7 +26,7 @@ def find_models(directory, regex="\S+_TS\d+\.pdb\Z"):
 def guess_casp_experiment(directory, regex="[Cc][Aa][Ss][Pp](\d+)"):
     """Guesses CASP experiment integer ID
 
-    :param directory: full path to CASP files directory
+    :param directory: full path to CASP interface directory
     :param regex: expected nomenclature of CASP directory name
     :return: None if no regex match, integer CASP experiment ID otherwise
     """
