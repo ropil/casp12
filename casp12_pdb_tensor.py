@@ -28,13 +28,13 @@ def main():
     from argparse import ArgumentParser
     from sys import argv, stdin
     parser = ArgumentParser(
-        description="Print a MATLAB distance tensor from a set of PDB-files." +
+        description="Print a MATLAB distance tensor from a set of PDB-interface." +
     " This version is not aware of residue numbering")
     parser.add_argument(
         "-delim", nargs=1, default=[";"], metavar="str",
         help="Set delimiter, default=;")
     parser.add_argument(
-        "files", nargs="*", metavar="FILE", help="PDB-files for input")
+        "interface", nargs="*", metavar="FILE", help="PDB-interface for input")
     arguments = parser.parse_args(argv[1:])
     files = arguments.files
 
@@ -42,7 +42,7 @@ def main():
     delimiter = arguments.delim[0]
     chainlength = {}
 
-    # Parse files, checking for lengths
+    # Parse interface, checking for lengths
     # this is currently unnecessary since we are not residue aware here
     for f in files:
         with open(f, 'r') as infile:

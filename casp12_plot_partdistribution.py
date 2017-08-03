@@ -77,13 +77,13 @@ def main():
     parser.add_argument('-v', '--version', action='version',
                         version=get_version_str())
     parser.add_argument(
-        "files", nargs="*", metavar="FILE", help="databases to read")
+        "interface", nargs="*", metavar="FILE", help="databases to read")
     arguments = parser.parse_args(argv[1:])
     files = arguments.files
 
     # Set variables here
 
-    # Parse STDIN or files
+    # Parse STDIN or interface
     for f in files:
         with connect(f) as database:
             data = read_data(database)

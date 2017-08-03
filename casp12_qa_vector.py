@@ -37,17 +37,17 @@ def main():
         "-t", nargs=1, default=["nothing"], metavar="TEXT",
         help="What to print")
     parser.add_argument(
-        "files", nargs="*", metavar="FILE", help="Files for input")
+        "interface", nargs="*", metavar="FILE", help="Files for input")
     arguments = parser.parse_args(argv[1:])
     files = arguments.files
-    # Use stdin if no supplied files
+    # Use stdin if no supplied interface
     if len(arguments.files) == 0:
         files = [stdin]
 
     # Set variables here
     vectors = []
 
-    # Parse STDIN or files
+    # Parse STDIN or interface
     for f in files:
         infile = f
         # Open for reading if file path specified

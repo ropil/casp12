@@ -4,7 +4,7 @@ from casp12.files.targets import find_targets, guess_casp_experiment
 from sqlite3 import connect
 
 '''
- Write pcons domain definition (ignore) files into given CASP datadir
+ Write pcons domain definition (ignore) interface into given CASP datadir
  Copyright (C) 2017  Robert Pilstål
 
    This program is free software: you can redistribute it and/or modify
@@ -40,7 +40,7 @@ def main():
     from argparse import ArgumentParser
     from sys import argv, stdin
     parser = ArgumentParser(
-        description="Write pcons domain definition files into CASP datadirs")
+        description="Write pcons domain definition interface into CASP datadirs")
     parser.add_argument(
         "-db", nargs=1, metavar="file",
         help="Domain definition database")
@@ -50,7 +50,7 @@ def main():
     parser.add_argument('-v', '--version', action='version',
                         version=get_version_str())
     parser.add_argument(
-        "files", nargs="*", metavar="PATH", help="Pathways to CASP data")
+        "interface", nargs="*", metavar="PATH", help="Pathways to CASP data")
     arguments = parser.parse_args(argv[1:])
     files = arguments.files
 
@@ -72,7 +72,7 @@ def main():
         # Append target paths
         targets = {**targets, **newtargets}
 
-    # Read domain definitions and write pcons ignore files
+    # Read domain definitions and write pcons ignore interface
     database = connect(sqlite_file)
     for target in targets:
         ignore_residues = pcons_domain_specifications(target_casp[target],
