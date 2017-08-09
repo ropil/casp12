@@ -34,7 +34,7 @@ def main():
         "-delim", nargs=1, default=[";"], metavar="str",
         help="Set delimiter, default=;")
     parser.add_argument(
-        "interface", nargs="*", metavar="FILE", help="PDB-interface for input")
+        "files", nargs="*", metavar="FILE", help="PDB-interface for input")
     arguments = parser.parse_args(argv[1:])
     files = arguments.files
 

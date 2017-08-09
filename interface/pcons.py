@@ -90,7 +90,7 @@ def join_models(pcons_domains, total_len):
     """
     joined_domain_local = {}
     joined_domain_global = {}
-    li
+
     # Joining of models
     for domain in pcons_domains:
         for model in pcons_domains[domain]:

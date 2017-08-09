@@ -77,7 +77,7 @@ def main():
     parser.add_argument('-v', '--version', action='version',
                         version=get_version_str())
     parser.add_argument(
-        "interface", nargs="*", metavar="FILE", help="databases to read")
+        "files", nargs="*", metavar="FILE", help="databases to read")
     arguments = parser.parse_args(argv[1:])
     files = arguments.files
 

@@ -37,7 +37,7 @@ def main():
         "-t", nargs=1, default=["nothing"], metavar="TEXT",
         help="What to print")
     parser.add_argument(
-        "interface", nargs="*", metavar="FILE", help="Files for input")
+        "files", nargs="*", metavar="FILE", help="Files for input")
     arguments = parser.parse_args(argv[1:])
     files = arguments.files
     # Use stdin if no supplied interface

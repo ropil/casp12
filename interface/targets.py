@@ -38,3 +38,34 @@ def guess_casp_experiment(directory, regex="[Cc][Aa][Ss][Pp](\d+)"):
     return None
 
 
+def get_domains(casp, targets, database):
+    """Get domain identifiers for each CASP target
+
+    :param casp: integer CASP experiment serial identifier
+    :param targets: list of target indentifiers, each as a string
+    :param database: sqlite3 connector object to domain definition database
+    :return: dictionary with target ID's as keys and lists of domain ID's as
+             values
+    """
+    domains = {}
+
+    for target in targets:
+        domains[target] = get_domain(casp, target, database)
+
+    return domains
+
+
+def get_domain(casp, target, database):
+    """Get domain identifiers for each CASP target
+
+    :param casp: integer CASP experiment serial identifier
+    :param targets: target identifier, string
+    :param database: sqlite3 connector object to domain definition database
+    :return: List of domain identifiers, integers
+    """
+
+    # For every domain
+    query = "SELECT num FROM domain WHERE casp={} AND target='{}';".format(casp, target)
+    return [domain for (domain,) in database.execute(query)]
+
+

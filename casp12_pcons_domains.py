@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-from casp12.interface.pcons import pcons_domain_specifications, pcons_write_domain_file
-from casp12.interface.targets import find_targets, guess_casp_experiment
+from casp12.interface.pcons import join_models, run_pcons, read_pcons, \
+    write_scorefile
+from casp12.interface.targets import find_targets, guess_casp_experiment, \
+    get_domain
 from sqlite3 import connect
 
 '''
- Write pcons domain definition (ignore) interface into given CASP datadir
+ Run PCONS using domain definitions
  Copyright (C) 2017  Robert Pilstål
 
    This program is free software: you can redistribute it and/or modify
@@ -25,7 +27,7 @@ from sqlite3 import connect
 # Version and license information
 def get_version_str():
     return "\n".join([
-        "casp12_pcons_domain_defs  Copyright (C) 2017  Robert Pilstål;",
+        "casp12_pcons_domains  Copyright (C) 2017  Robert Pilstål;",
         "This program comes with ABSOLUTELY NO WARRANTY.",
         "This is free software, and you are welcome to redistribute it",
         "under certain conditions; see supplied General Public License."
@@ -40,7 +42,7 @@ def main():
     from argparse import ArgumentParser
     from sys import argv, stdin
     parser = ArgumentParser(
-        description="Write pcons domain definition interface into CASP datadirs")
+        description="Run PCONS using domain definitions on CASP datadirs")
     parser.add_argument(
         "-db", nargs=1, metavar="file",
         help="Domain definition database")
@@ -71,6 +73,8 @@ def main():
             target_casp[target] = casp
         # Append target paths
         targets = {**targets, **newtargets}
+
+
 
     # Read domain definitions and write pcons ignore interface
     database = connect(sqlite_file)

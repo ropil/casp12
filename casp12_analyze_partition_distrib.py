@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from re import compile
 from sqlite3 import connect
-from casp.database import create_database
+from casp12.database import create_database
 
 '''
  Analyze domain partition distribution in target set, storing result in database
@@ -112,7 +112,7 @@ def main():
     parser.add_argument('-v', '--version', action='version',
                         version=get_version_str())
     parser.add_argument(
-        "interface", nargs="*", metavar="FILE", help="Files for input")
+        "files", nargs="*", metavar="FILE", help="Files for input")
     arguments = parser.parse_args(argv[1:])
     files = arguments.files
     # Use stdin if no supplied interface
