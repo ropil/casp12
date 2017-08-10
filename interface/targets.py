@@ -4,6 +4,13 @@ from sqlite3 import connect
 
 
 def find_targets(directory, regex="T\d{4}"):
+    """Search for CASP targets in specified directory
+
+    :param directory: directory path, string
+    :param regex: target regex, string
+    :return: dictionary with target ID's as keys and paths to their data dirs as
+             values
+    """
     target_regex = compile(regex)
     targets = {}
     for filename in listdir(directory):
@@ -69,3 +76,23 @@ def get_domain(casp, target, database):
     return [domain for (domain,) in database.execute(query)]
 
 
+def get_length(casp, target, database):
+    """Get number of residues in target from database
+
+    :param casp: CASP experiment ID, integer
+    :param target: target ID, string
+    :param database: database handle, sqlite3 connector
+    :return: target length, integer
+    """
+    query = 'SELECT len FROM target WHERE casp="{}" AND id="{}";'.format(casp,
+                                                                         target)
+    target_length = database.execute(query).fetchone()[0]
+    ignore_residues = {}
+
+    # Sum domain lengths if target length not specified
+    if target_length is None:
+        query = "SELECT SUM(dlen) FROM domain_size WHERE casp={} AND target='{}' GROUP BY casp, target;".format(
+            casp, target)
+        target_length = database.execute(query).fetchone()[0]
+
+    return target_length

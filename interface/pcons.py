@@ -4,6 +4,7 @@ from operator import itemgetter
 from os import path
 from statistics import mean
 from subprocess import check_output
+from casp12.interface.targets import get_length
 
 
 def pcons_domain_specifications(casp, target, database):
@@ -15,16 +16,9 @@ def pcons_domain_specifications(casp, target, database):
     :return: dictionary with domain ID's as keys containing a full text PCONS
              ignore-file definition
     """
-    query = 'SELECT len FROM target WHERE casp="{}" AND id="{}";'.format(casp,
-                                                                         target)
-    target_length = database.execute(query).fetchone()[0]
-    ignore_residues = {}
 
-    # Sum domain lengths if target length not specified
-    if target_length is None:
-        query = "SELECT SUM(dlen) FROM domain_size WHERE casp={} AND target='{}' GROUP BY casp, target;".format(
-            casp, target)
-        target_length = database.execute(query).fetchone()[0]
+    # Get the length of the target
+    target_length = get_length(casp, target, database)
 
     # For every domain
     query = "SELECT num FROM domain WHERE casp={} AND target='{}';".format(casp,
@@ -49,6 +43,31 @@ def pcons_domain_specifications(casp, target, database):
     return ignore_residues
 
 
+def pcons_get_domain_file_name(directory, domain, method=None):
+    """Standard naming convention for PCONS domain ignore files
+
+    :param directory: target directory, string
+    :param domain: domain identifier, integer
+    :param method: partitioning method identifier, string
+    :return: filename and path, string
+    """
+    method_ext = ""
+    if method is not None:
+        method_ext = "_" + method
+    return path.join(directory,
+                     "pcons_domain_{}{}.ign".format(domain, method_ext))
+
+
+def pcons_get_model_file_name(directory):
+    """Standard naming convention for PCONS model file lists
+
+    :param directory: target directory, string
+    :return: filename and path, string
+    """
+
+    return path.join(directory, "pcons_models.lst")
+
+
 def pcons_write_domain_files(directory, ignore_residues, method=None):
     """Write a pcons domain ignore file
 
@@ -58,14 +77,23 @@ def pcons_write_domain_files(directory, ignore_residues, method=None):
     :param method: partition method type to append to filename,
                    default=no extension
     """
-    method_ext = ""
-    if method is not None:
-        method_ext = "_" + method
+
     for domain in ignore_residues:
-        with open(path.join(directory,
-                            "pcons_domain_{}{}.ign".format(domain, method_ext)),
+        with open(pcons_get_domain_file_name(directory, domain, method),
                   'w') as ignore_file:
             ignore_file.write(ignore_residues[domain])
+
+
+def pcons_write_model_file(directory, models):
+    """Write a PCONS model list file
+
+    :param directory: target model directory
+    :param models: dictionary with model ID's as keys and model pathways as keys
+    """
+
+    for model in models:
+        with open(pcons_get_model_file_name(directory), 'w') as model_list:
+            model_list.write(models[model])
 
 
 def global_score(local_score):
@@ -193,6 +221,23 @@ def S2d(S, d0=3, interval=(0.03846, 1.0), max_rmsd=15.0, min_rmsd=1.0):
             # If no QA, append None
             rmsd.append(x)
     return rmsd
+
+
+def get_scorefile_name(directory, method=None, partitioned=False):
+    """Get PCONS output naming convention
+
+    :param directory: target directory, string
+    :param method: indicate method identifier, string
+    :param partitioned: Indicate if domain method, boolean
+    :return: pathway to output file, string
+    """
+    method_ext = ""
+    domain_ext = ""
+    if partitioned:
+        domain_ext = "_domain"
+    if method is not None:
+        method_ext = "_" + method
+    return path.join(directory, "pcons_{}{}.pcn".format(domain_ext, method_ext))
 
 
 def write_scorefile(outfile, global_score, local_score, d0=3):

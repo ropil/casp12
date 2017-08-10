@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 from casp12.interface.pcons import join_models, run_pcons, read_pcons, \
-    write_scorefile
+    write_scorefile, pcons_get_domain_file_name, pcons_get_model_file_name, \
+    pcons_write_model_file
 from casp12.interface.targets import find_targets, guess_casp_experiment, \
-    get_domain
+    get_domain, find_models, get_length
 from sqlite3 import connect
 
 '''
@@ -74,15 +75,23 @@ def main():
         # Append target paths
         targets = {**targets, **newtargets}
 
-
-
-    # Read domain definitions and write pcons ignore interface
+    # Run PCONS for each target and domain, then join the PCONS models
     database = connect(sqlite_file)
     for target in targets:
-        ignore_residues = pcons_domain_specifications(target_casp[target],
-                                                      target, database)
-        pcons_write_domain_file(targets[target], ignore_residues, method=method)
-
+        casp = target_casp[target]
+        domains = get_domain(casp, target, database)
+        targetdir = targets[target]
+        models = find_models(targetdir)
+        pcons_write_model_file(targetdir, models)
+        modelfile = pcons_get_model_file_name(targetdir)
+        length = get_length(casp, target, database)
+        pcons_results = []
+        for domain in domains:
+            ignorefile = pcons_get_domain_file_name(targetdir, domain,
+                                                         method=method)
+            pcons_results.append(run_pcons(modelfile, length, d0=d0, ignore_file=ignorefile))
+        # Join the models here using joining function on the output
+        # output the joint model using the output function and naming convention
 
 if __name__ == '__main__':
     main()
