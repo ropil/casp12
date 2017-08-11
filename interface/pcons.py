@@ -5,6 +5,7 @@ from os import path
 from statistics import mean
 from subprocess import check_output
 from casp12.interface.targets import get_length
+import resource
 
 
 def pcons_domain_specifications(casp, target, database):
@@ -19,6 +20,7 @@ def pcons_domain_specifications(casp, target, database):
 
     # Get the length of the target
     target_length = get_length(casp, target, database)
+    ignore_residues = {}
 
     # For every domain
     query = "SELECT num FROM domain WHERE casp={} AND target='{}';".format(casp,
@@ -91,9 +93,9 @@ def pcons_write_model_file(directory, models):
     :param models: dictionary with model ID's as keys and model pathways as keys
     """
 
-    for model in models:
-        with open(pcons_get_model_file_name(directory), 'w') as model_list:
-            model_list.write(models[model])
+    with open(pcons_get_model_file_name(directory), 'w') as model_list:
+        for model in models:
+            model_list.write(models[model] + "\n")
 
 
 def global_score(local_score):
@@ -110,7 +112,7 @@ def join_models(pcons_domains, total_len):
 
     :param pcons_domains: Dictionary with domain identifiers as keys (integers)
                           and dictionaries as values, which has targets as keys
-                          and PCONS score vectors as values, as values.
+                          and PCONS score vectors as values.
     :param total_len: number of residues in the target sequence
     :return: tuple pair with two dictionaries using model identifiers as keys,
              the first dict containing global scores as values, the second local
@@ -136,7 +138,7 @@ def join_models(pcons_domains, total_len):
     return (joined_domain_global, joined_domain_local)
 
 
-def read_pcons(output, transform_distance=False, d0=3):
+def read_pcons(output, transform_distance=True, d0=3):
     """Reads PCONS output
 
     :param output: File handle or iterable of strings (one string per row)
@@ -149,6 +151,7 @@ def read_pcons(output, transform_distance=False, d0=3):
     """
     score_global = {}
     score_local = {}
+    print(output)
     for line in output:
         if search(r"TS\d\s", line):
             temp = line.rstrip().split()
@@ -159,6 +162,7 @@ def read_pcons(output, transform_distance=False, d0=3):
             else:
                 score_local[key] = scores
             score_global[key] = global_score(score_local[key])
+    print((score_global, score_local))
     return (score_global, score_local)
 
 
@@ -173,6 +177,10 @@ def run_pcons(model_listing_file, total_len, d0=3, ignore_file=None,
     :param pcons_binary: PCONS binary path, str
     :return: PCONs output as a list of strings (one string per line)
     """
+
+    # Set stacksize to unlimited
+    resource.setrlimit(resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+    # Form command
     cmd = [pcons_binary, "-i", model_listing_file, "-L", str(total_len), "-d0",
            str(d0)]
     if ignore_file is not None:
@@ -237,7 +245,7 @@ def get_scorefile_name(directory, method=None, partitioned=False):
         domain_ext = "_domain"
     if method is not None:
         method_ext = "_" + method
-    return path.join(directory, "pcons_{}{}.pcn".format(domain_ext, method_ext))
+    return path.join(directory, "pcons{}{}.pcn".format(domain_ext, method_ext))
 
 
 def write_scorefile(outfile, global_score, local_score, d0=3):
@@ -252,10 +260,13 @@ def write_scorefile(outfile, global_score, local_score, d0=3):
     :param d0: TM-/PCONS score parameter (float)
     """
 
+    print(global_score)
     # Fastest sorting algorithm as indicated in benchmark;
     # https://writeonly.wordpress.com/2008/08/30/sorting-dictionaries-by-value-in-python-improved/
-    global_score_sorted = sorted(global_score.iteritems(), key=itemgetter(1),
+    global_score_sorted = sorted(global_score.items(), key=itemgetter(1),
                                  reverse=True)
+
+    print(global_score_sorted)
 
     # Header
     outfile.write("PFRMAT QA\n")
@@ -275,3 +286,30 @@ def write_scorefile(outfile, global_score, local_score, d0=3):
             else:
                 outfile.write(" %.3f" % value)
         outfile.write("\n")
+
+
+def which(program):
+    """Find absolute path of program executable
+
+    Found and copied from stack overflow at:
+      https://stackoverflow.com/questions/377017/test-if-executable-exists-in-python#377028
+
+    :param program: Program to search for, str
+    :return: return path to executable, or None if no executable found
+    """
+    import os
+    def is_exe(fpath):
+        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
+
+    fpath, fname = os.path.split(program)
+    if fpath:
+        if is_exe(program):
+            return program
+    else:
+        for path in os.environ["PATH"].split(os.pathsep):
+            path = path.strip('"')
+            exe_file = os.path.join(path, program)
+            if is_exe(exe_file):
+                return exe_file
+
+    return None
