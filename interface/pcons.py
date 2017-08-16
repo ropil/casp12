@@ -1,8 +1,8 @@
 from math import sqrt
-from re import search
+from re import compile, search
 from operator import itemgetter
 from os import path
-from statistics import mean
+from statistics import mean, StatisticsError
 from subprocess import check_output
 from casp12.interface.targets import get_length
 import resource
@@ -104,7 +104,10 @@ def global_score(local_score):
     :param local_score: vector of local scores, list of floats
     :return: Arithmetic mean of score vector, float
     """
-    return mean([x for x in local_score if x is not None])
+    try:
+        return mean([x for x in local_score if x is not None])
+    except StatisticsError:
+        return None
 
 
 def join_models(pcons_domains, total_len):
@@ -138,7 +141,7 @@ def join_models(pcons_domains, total_len):
     return (joined_domain_global, joined_domain_local)
 
 
-def read_pcons(output, transform_distance=True, d0=3):
+def read_pcons(output, transform_distance=True, d0=3, regex="^\S+_TS\d+"):
     """Reads PCONS output
 
     :param output: File handle or iterable of strings (one string per row)
@@ -152,16 +155,18 @@ def read_pcons(output, transform_distance=True, d0=3):
     score_global = {}
     score_local = {}
     print(output)
+    target = compile(regex)
     for line in output:
-        if search(r"TS\d\s", line):
+        if target.match(line):
             temp = line.rstrip().split()
             key = temp[0]
+            score_global[key] = float(temp[1]) if temp[1] != 'X' else None
             scores = [None if x == "X" else float(x) for x in temp[2:]]
             if transform_distance:
                 score_local[key] = d2S(scores, d0)
             else:
                 score_local[key] = scores
-            score_global[key] = global_score(score_local[key])
+            # score_global[key] = global_score(score_local[key])
     print((score_global, score_local))
     return (score_global, score_local)
 
@@ -186,7 +191,7 @@ def run_pcons(model_listing_file, total_len, d0=3, ignore_file=None,
     if ignore_file is not None:
         cmd += ["-ignore_res", ignore_file]
     output = check_output(cmd)
-    return str(output).split('\n')
+    return str(output).split('\\n')
 
 
 def d2S(d_in, d0=3):
@@ -260,13 +265,13 @@ def write_scorefile(outfile, global_score, local_score, d0=3):
     :param d0: TM-/PCONS score parameter (float)
     """
 
-    print(global_score)
+    #print(global_score)
     # Fastest sorting algorithm as indicated in benchmark;
     # https://writeonly.wordpress.com/2008/08/30/sorting-dictionaries-by-value-in-python-improved/
     global_score_sorted = sorted(global_score.items(), key=itemgetter(1),
                                  reverse=True)
 
-    print(global_score_sorted)
+    #print(global_score_sorted)
 
     # Header
     outfile.write("PFRMAT QA\n")

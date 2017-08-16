@@ -123,7 +123,7 @@ def main():
                           pcons_binary=pcons), transform_distance=transform,
                 d0=3)[1]
         # Join the models here using joining function on the output
-        print(pcons_results)
+        # print(pcons_results)
         joint_quality = join_models(pcons_results, length)
         # output the joint model using the output function and naming convention
         scorefile = get_scorefile_name(targetdir, method=method,
