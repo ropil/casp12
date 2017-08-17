@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-from casp12.interface.pcons import pcons_domain_specifications, pcons_write_domain_file
+from casp12.interface.pcons import pcons_domain_specifications, pcons_write_domain_files
 from casp12.interface.targets import find_targets, guess_casp_experiment
+from casp12.casp12_pcons_domains import read_target_selection
 from sqlite3 import connect
 
 '''
@@ -47,6 +48,9 @@ def main():
     parser.add_argument(
         "-method", nargs=1, default=[None], metavar="str",
         help="Domain partition method name, default=None")
+    parser.add_argument(
+        "-targets", nargs=1, default=[None], metavar="str",
+        help="Target selection [target1,target2,target3,etc.], default=None")
     parser.add_argument('-v', '--version', action='version',
                         version=get_version_str())
     parser.add_argument(
@@ -57,6 +61,7 @@ def main():
     # Set variables here
     sqlite_file = arguments.db[0]
     method = arguments.method[0]
+    target_list = arguments.targets[0]
     targets = {}
     target_casp = {}
 
@@ -72,12 +77,19 @@ def main():
         # Append target paths
         targets = {**targets, **newtargets}
 
+    # Check if selection is specified, otherwise run over all targets found
+    if target_list is not None:
+        target_list = read_target_selection(target_list)
+    else:
+        target_list = set(targets.keys())
+
     # Read domain definitions and write pcons ignore interface
     database = connect(sqlite_file)
-    for target in targets:
+    for target in target_list:
         ignore_residues = pcons_domain_specifications(target_casp[target],
                                                       target, database)
-        pcons_write_domain_file(targets[target], ignore_residues, method=method)
+        print(ignore_residues)
+        pcons_write_domain_files(targets[target], ignore_residues, method=method)
 
 
 if __name__ == '__main__':

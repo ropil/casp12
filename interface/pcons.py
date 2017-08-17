@@ -84,6 +84,7 @@ def pcons_write_domain_files(directory, ignore_residues, method=None):
         with open(pcons_get_domain_file_name(directory, domain, method),
                   'w') as ignore_file:
             ignore_file.write(ignore_residues[domain])
+            ignore_file.close()
 
 
 def pcons_write_model_file(directory, models):
@@ -154,7 +155,7 @@ def read_pcons(output, transform_distance=True, d0=3, regex="^\S+_TS\d+"):
     """
     score_global = {}
     score_local = {}
-    print(output)
+    # print(output)
     target = compile(regex)
     for line in output:
         if target.match(line):
@@ -167,7 +168,7 @@ def read_pcons(output, transform_distance=True, d0=3, regex="^\S+_TS\d+"):
             else:
                 score_local[key] = scores
             # score_global[key] = global_score(score_local[key])
-    print((score_global, score_local))
+    # print((score_global, score_local))
     return (score_global, score_local)
 
 
@@ -190,6 +191,7 @@ def run_pcons(model_listing_file, total_len, d0=3, ignore_file=None,
            str(d0)]
     if ignore_file is not None:
         cmd += ["-ignore_res", ignore_file]
+    print("Running: " + " ".join(cmd))
     output = check_output(cmd)
     return str(output).split('\\n')
 
