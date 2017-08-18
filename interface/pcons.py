@@ -87,16 +87,21 @@ def pcons_write_domain_files(directory, ignore_residues, method=None):
             ignore_file.close()
 
 
-def pcons_write_model_file(directory, models):
+def pcons_write_model_file(directory, models, local=False):
     """Write a PCONS model list file
 
+    :param local: Keep only filename of target path
     :param directory: target model directory
     :param models: dictionary with model ID's as keys and model pathways as keys
     """
 
+    model_files = [models[model] for model in models]
+    if local:
+        model_files = [path.basename(model) for model in model_files]
+
     with open(pcons_get_model_file_name(directory), 'w') as model_list:
-        for model in models:
-            model_list.write(models[model] + "\n")
+        for model in model_files:
+            model_list.write(model + "\n")
 
 
 def global_score(local_score):
@@ -138,6 +143,7 @@ def join_models(pcons_domains, total_len):
     # Collapsing of models
     for model in joined_domain_local:
         joined_domain_global[model] = global_score(joined_domain_local[model])
+        # print("Model {} joined score = {}".format(model, joined_domain_global[model]))
 
     return (joined_domain_global, joined_domain_local)
 
@@ -285,7 +291,7 @@ def write_scorefile(outfile, global_score, local_score, d0=3):
     # Score section
     for (model, score) in (global_score_sorted):
         # Global score
-        outfile.write("%s %.3f" % (model, score))
+        outfile.write("%s %.3f" % (model, S2d([score], d0=d0)[0]))
         # Local scores
         for value in S2d(local_score[model], d0=d0):
             if value is None:

@@ -20,13 +20,25 @@ def find_targets(directory, regex="T\d{4}"):
     return targets
 
 
-def find_models(directory, regex="\S+_TS\d+\.pdb\Z"):
-    model_regex = compile(regex)
+def find_models(directory, regexes=["\S+_TS\d+\.pdb\Z", "\S+_TS\d+\Z"]):
+    """ Find models in target directory using a list of regexes
+
+    :param directory: Directory to search, string
+    :param regexes: Regexes to use
+    :return: a dictionary with model id's as keys and their pathnames as values
+    """
+
     models = {}
-    for filename in listdir(directory):
-        if path.isfile(path.join(directory, filename)):
-            if model_regex.match(filename):
-                models[filename] = path.join(directory, filename)
+    regex = 0
+    while len(models) == 0 and len(regexes) > regex:
+        model_regex = compile(regexes[regex])
+        regex += 1
+        for filename in listdir(directory):
+            if path.isfile(path.join(directory, filename)):
+                if model_regex.match(filename):
+                    models[filename] = path.join(directory, filename)
+    if len(models) == 0:
+        raise FileNotFoundError('Could not find any models files in "{}"'.format(directory))
     return models
 
 

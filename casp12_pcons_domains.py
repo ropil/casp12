@@ -108,10 +108,10 @@ def main():
         domains = get_domain(casp, target, database)
         targetdir = targets[target]
         models = find_models(targetdir)
-        print(models)
+        # print(models)
         pcons_write_model_file(targetdir, models)
         modelfile = pcons_get_model_file_name(targetdir)
-        print(modelfile)
+        # print(modelfile)
         length = get_length(casp, target, database)
         pcons_results = {}
         for domain in domains:
