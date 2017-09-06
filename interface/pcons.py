@@ -93,15 +93,19 @@ def pcons_write_model_file(directory, models, local=False):
     :param local: Keep only filename of target path
     :param directory: target model directory
     :param models: dictionary with model ID's as keys and model pathways as keys
+    :return: name of model file written
     """
 
     model_files = [models[model] for model in models]
     if local:
         model_files = [path.basename(model) for model in model_files]
 
-    with open(pcons_get_model_file_name(directory), 'w') as model_list:
+    modelfile = pcons_get_model_file_name(directory)
+    with open(modelfile, 'w') as model_list:
         for model in model_files:
             model_list.write(model + "\n")
+
+    return modelfile
 
 
 def global_score(local_score):
@@ -171,6 +175,7 @@ def read_pcons(output, transform_distance=True, d0=3, regex="^\S+_TS\d+"):
             scores = [None if x == "X" else float(x) for x in temp[2:]]
             if transform_distance:
                 score_local[key] = d2S(scores, d0)
+                score_global[key] = d2S([score_global[key]], d0)[0]
             else:
                 score_local[key] = scores
             # score_global[key] = global_score(score_local[key])
@@ -178,7 +183,7 @@ def read_pcons(output, transform_distance=True, d0=3, regex="^\S+_TS\d+"):
     return (score_global, score_local)
 
 
-def run_pcons(model_listing_file, total_len, d0=3, ignore_file=None,
+def run_pcons(model_listing_file, total_len=None, d0=3, ignore_file=None,
               pcons_binary="pcons"):
     """Run PCONS using subprocess on target model interface w/wo partition
 
@@ -193,8 +198,10 @@ def run_pcons(model_listing_file, total_len, d0=3, ignore_file=None,
     # Set stacksize to unlimited
     resource.setrlimit(resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
     # Form command
-    cmd = [pcons_binary, "-i", model_listing_file, "-L", str(total_len), "-d0",
-           str(d0)]
+    cmd = [pcons_binary, "-i", model_listing_file]
+    if total_len is not None:
+        cmd += ["-L", str(total_len)]
+    cmd += ["-d0", str(d0)]
     if ignore_file is not None:
         cmd += ["-ignore_res", ignore_file]
     print("Running: " + " ".join(cmd))

@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-from casp12.interface.pcons import join_models, run_pcons, read_pcons, \
-    write_scorefile, pcons_get_domain_file_name, pcons_get_model_file_name, \
-    pcons_write_model_file, get_scorefile_name, which
+from casp12.interface.pcons import run_pcons, read_pcons, \
+    write_scorefile, pcons_write_model_file, get_scorefile_name, which
 from casp12.interface.targets import find_targets, guess_casp_experiment, \
-    get_domain, find_models, get_length
+    find_models, get_length
 from sqlite3 import connect
 
 '''
- Run PCONS using domain definitions
+ Run vanilla PCONS on a CASP dataset
  Copyright (C) 2017  Robert Pilstål
 
    This program is free software: you can redistribute it and/or modify
@@ -28,7 +27,7 @@ from sqlite3 import connect
 # Version and license information
 def get_version_str():
     return "\n".join([
-        "casp12_pcons_domains  Copyright (C) 2017  Robert Pilstål;",
+        "casp12_pcons  Copyright (C) 2017  Robert Pilstål;",
         "This program comes with ABSOLUTELY NO WARRANTY.",
         "This is free software, and you are welcome to redistribute it",
         "under certain conditions; see supplied General Public License."
@@ -45,16 +44,13 @@ def main():
     from argparse import ArgumentParser
     from sys import argv, stdin
     parser = ArgumentParser(
-        description="Run PCONS using domain definitions on CASP datadirs")
+        description="Run vanilla PCONS on CASP datadirs")
     parser.add_argument(
         "-d0", nargs=1, default=[3.0], metavar="float",
         help="D0 measure in score/distance conversions, default=3.0")
     parser.add_argument(
         "-db", nargs=1, metavar="file",
-        help="Domain definition database")
-    parser.add_argument(
-        "-method", nargs=1, default=[None], metavar="str",
-        help="Domain partition method name, default=None")
+        help="database containing protein lengths")
     parser.add_argument(
         "-pcons", nargs=1, default=["pcons"], metavar="str",
         help="Location of pcons binary, if not in path etc.")
@@ -75,7 +71,7 @@ def main():
     d0 = arguments.d0[0]
     pcons = arguments.pcons[0]
     sqlite_file = arguments.db[0]
-    method = arguments.method[0]
+    method = "vanilla"
     targets = {}
     target_list = arguments.targets[0]
     target_casp = {}
@@ -101,35 +97,21 @@ def main():
     else:
         target_list = set(targets.keys())
 
-    # Run PCONS for each target and domain, then join the PCONS models
+    # Run PCONS for each target
     database = connect(sqlite_file)
     for target in target_list:
         casp = target_casp[target]
-        domains = get_domain(casp, target, database)
         targetdir = targets[target]
         models = find_models(targetdir)
         # print(models)
-        pcons_write_model_file(targetdir, models)
-        modelfile = pcons_get_model_file_name(targetdir)
+        modelfile = pcons_write_model_file(targetdir, models)
         # print(modelfile)
         length = get_length(casp, target, database)
-        pcons_results = {}
-        for domain in domains:
-            ignorefile = pcons_get_domain_file_name(targetdir, domain,
-                                                    method=method)
-            # Run and parse results, keeping local scores only
-            pcons_results[domain] = read_pcons(
-                run_pcons(modelfile, total_len=length, d0=d0, ignore_file=ignorefile,
-                          pcons_binary=pcons), transform_distance=transform,
-                d0=3)[1]
-        # Join the models here using joining function on the output
-        # print(pcons_results)
-        joint_quality = join_models(pcons_results, length)
+        pcons_results = read_pcons(run_pcons(modelfile, total_len=length, d0=d0, pcons_binary=pcons), transform_distance=transform, d0=3)
         # output the joint model using the output function and naming convention
-        scorefile = get_scorefile_name(targetdir, method=method,
-                                       partitioned=True)
+        scorefile = get_scorefile_name(targetdir, method=method, partitioned=False)
         with open(scorefile, 'w') as outfile:
-            write_scorefile(outfile, joint_quality[0], joint_quality[1], d0=d0)
+            write_scorefile(outfile, pcons_results[0], pcons_results[1], d0=d0)
 
 
 if __name__ == '__main__':
