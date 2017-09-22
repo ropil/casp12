@@ -8,39 +8,38 @@ from casp12.interface.targets import get_length
 import resource
 
 
-def pcons_domain_specifications(casp, target, database):
+def pcons_domain_specifications(casp, target, database, method):
     """Get domain ignore specifications for PCONS
 
     :param casp: integer CASP experiment serial identifier
     :param target: string target identifier
     :param database: sqlite3 connector object to domain definition database
+    :param method: domain partitioning method, integer
     :return: dictionary with domain ID's as keys containing a full text PCONS
              ignore-file definition
     """
 
     # Get the length of the target
-    target_length = get_length(casp, target, database)
+    target_length = get_length(target, method, database)
     ignore_residues = {}
 
     # For every domain
-    query = "SELECT num FROM domain WHERE casp={} AND target='{}';".format(casp,
-                                                                           target)
-    for (domain,) in database.execute(query):
+    query = "SELECT domain.id, component.num FROM component INNER JOIN domain ON (domain.id = component.domain) WHERE domain.method={} AND component.target='{}';".format(method, target)
+    for (domain,num,) in database.execute(query):
         # Make an ignore-all template
-        ignore_residues[domain] = set([i for i in range(1, target_length + 1)])
+        ignore_residues[num] = set([i for i in range(1, target_length + 1)])
         # Collect all domain residues from all segments
         domain_residues = set()
-        query = "SELECT start, stop FROM segment WHERE casp={} AND target='{}' AND domain={};".format(
-            casp, target, domain)
+        query = "SELECT start, stop FROM segment WHERE domain={};".format(domain)
         for (start, stop) in database.execute(query):
             domain_residues = domain_residues.union(range(start, stop + 1))
         # Only ignore non-domain residues
-        ignore_residues[domain] = ignore_residues[domain] - domain_residues
+        ignore_residues[num] = ignore_residues[num] - domain_residues
         # Convert to a writable string
-        ignore_residues[domain] = list(ignore_residues[domain])
-        ignore_residues[domain].sort()
-        ignore_residues[domain] = "\n".join(
-            [str(i) for i in ignore_residues[domain]])
+        ignore_residues[num] = list(ignore_residues[num])
+        ignore_residues[num].sort()
+        ignore_residues[num] = "\n".join(
+            [str(i) for i in ignore_residues[num]])
 
     return ignore_residues
 
@@ -55,7 +54,7 @@ def pcons_get_domain_file_name(directory, domain, method=None):
     """
     method_ext = ""
     if method is not None:
-        method_ext = "_" + method
+        method_ext = "_{:02}".format(method)
     return path.join(directory,
                      "pcons_domain_{}{}.ign".format(domain, method_ext))
 

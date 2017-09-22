@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from re import compile
 from sqlite3 import connect
-from casp12.database import create_database
+from casp12.database import create_result_database, method_type
 
 '''
  Analyze domain partition distribution in target set, storing result in database
@@ -49,29 +49,50 @@ def read_domain(infile):
     return domains
 
 
-def store_domains(domains, database, casp=12):
+def store_domains(domains, database, method, casp=12):
     # Check if CASP is present, or create it
     if database.execute(
             "SELECT EXISTS (SELECT * FROM casp WHERE id = {} LIMIT 1);".format(
                 casp)).fetchone()[0] == 0:
         database.execute("INSERT INTO casp (id) VALUES ({});".format(casp))
+    # Create new method if not specified
+    if method is None:
+        database.execute('INSERT INTO method (name, description, type) VALUES ("{}", "{}", {});'.format("Unkonwn Partitioner", "Automatically inserted unknown partition method", method_type["partitioner"]))
+        method = database.execute("SELECT last_insert_rowid();").fetchone()[0]
+    # Or insert new if specified but does not exist
+    elif database.execute(
+            "SELECT EXISTS (SELECT * FROM method WHERE id = {} LIMIT 1);".format(
+                method)).fetchone()[0] == 0:
+        database.execute('INSERT INTO method (id, name, description, type) VALUES ({}, "{}", "{}", {});'.format(method, "Unkonwn Partitioner", "Automatically inserted unknown partition method", method_type["partitioner"]))
     for target in domains:
         # check if target is present, or create it
         if database.execute(
-                'SELECT EXISTS (SELECT * FROM target WHERE casp = {} AND id = "{}" LIMIT 1);'.format(
-                    casp, target)).fetchone()[0] == 0:
+                'SELECT EXISTS (SELECT * FROM target WHERE id = "{}" LIMIT 1);'.format(
+                 target)).fetchone()[0] == 0:
             database.execute(
-                'INSERT INTO target (casp, id) VALUES ({}, "{}");'.format(casp, target))
-            for (num, domain) in enumerate(domains[target]):
-                # check if domain is present, or create it
-                if database.execute(
-                        'SELECT EXISTS (SELECT * FROM domain WHERE casp = {} AND target = "{}" AND num = {} LIMIT 1);'.format(
-                            casp, target, num)).fetchone()[0] == 0:
-                    database.execute(
-                        'INSERT INTO domain (casp, target, num) VALUES ({}, "{}", {});'.format(casp, target, num))
-                for segment in domain:
-                    # print(segment, type(segment))
-                    database.execute('INSERT INTO segment (casp, target, domain, start, stop) VALUES ({}, "{}", {}, {}, {});'.format(casp, target, num, segment[0], segment[1]))
+                'INSERT INTO target (id, casp) VALUES ("{}", {});'.format(target, casp))
+        for (num, domain) in enumerate(domains[target]):
+            # check if domain is present, or create it
+            domain_id = database.execute(
+                'SELECT domain.id FROM component INNER JOIN domain ON (component.domain = domain.id) WHERE component.target = "{}" AND component.num = {} AND domain.method = {} LIMIT 1;'.format(
+                    target, num, method)).fetchone()
+            print(domain_id)
+            if domain_id is None:
+                # Insert new domain
+                database.execute(
+                    'INSERT INTO domain (method) VALUES ({});'.format(method))
+                # Get last inserted domains rowid (domain id)
+                domain_id = database.execute("SELECT last_insert_rowid();").fetchone()
+                # Create component connector
+                database.execute(
+                    'INSERT INTO component (target, num, domain) VALUES ("{}", {}, {});'.format(
+                        target, num, domain_id[0]))
+                print("Inserted domain {}".format(domain_id[0]))
+            domain_id = domain_id[0]
+            print("And again {}".format(domain_id))
+            for segment in domain:
+                # print(segment, type(segment))
+                database.execute('INSERT INTO segment (domain, start, stop) VALUES ({}, {}, {});'.format(domain_id, segment[0], segment[1]))
 
 
 def print_domains(domains):
@@ -107,6 +128,9 @@ def main():
         help="Regex to use for extracting targetnames from file pathnames" +
              ", default=^.*/(T\d{4})/.*$")
     parser.add_argument(
+        "-method", nargs=1, default=[None], metavar="INT",
+        help="CASP experiment serial, default=12")
+    parser.add_argument(
         "-target", nargs=1, default=[None], metavar="TEXT",
         help="Target name (if reading STDIN), default=None")
     parser.add_argument('-v', '--version', action='version',
@@ -121,6 +145,9 @@ def main():
 
     # Set variables here
     casp = int(arguments.casp[0])
+    method = arguments.method[0]
+    if method is not None:
+        method = int(method)
 
     target = arguments.target[0]
     if target is None:
@@ -149,12 +176,12 @@ def main():
             database = connect(db)
         else:
             #otherwise create a new one
-            database = create_database(db)
+            database = create_result_database(db)
     else:
-        database = create_database()
+        database = create_result_database()
 
     # Write data to database
-    store_domains(domains, database, casp=casp)
+    store_domains(domains, database, method, casp=casp)
 
     # commit and close database,
     if db is not None:

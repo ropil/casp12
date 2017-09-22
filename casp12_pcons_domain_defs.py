@@ -46,8 +46,8 @@ def main():
         "-db", nargs=1, metavar="file",
         help="Domain definition database")
     parser.add_argument(
-        "-method", nargs=1, default=[None], metavar="str",
-        help="Domain partition method name, default=None")
+        "-method", nargs=1, metavar="int",
+        help="Domain partition method ID")
     parser.add_argument(
         "-targets", nargs=1, default=[None], metavar="str",
         help="Target selection [target1,target2,target3,etc.], default=None")
@@ -60,7 +60,7 @@ def main():
 
     # Set variables here
     sqlite_file = arguments.db[0]
-    method = arguments.method[0]
+    method = int(arguments.method[0])
     target_list = arguments.targets[0]
     targets = {}
     target_casp = {}
@@ -87,7 +87,7 @@ def main():
     database = connect(sqlite_file)
     for target in target_list:
         ignore_residues = pcons_domain_specifications(target_casp[target],
-                                                      target, database)
+                                                      target, database, method)
         print(ignore_residues)
         pcons_write_domain_files(targets[target], ignore_residues, method=method)
 

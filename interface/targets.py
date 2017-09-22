@@ -88,23 +88,22 @@ def get_domain(casp, target, database):
     return [domain for (domain,) in database.execute(query)]
 
 
-def get_length(casp, target, database):
+def get_length(target, method, database):
     """Get number of residues in target from database
 
-    :param casp: CASP experiment ID, integer
     :param target: target ID, string
+    :param method: domain partitioning method, integer
     :param database: database handle, sqlite3 connector
     :return: target length, integer
     """
-    query = 'SELECT len FROM target WHERE casp="{}" AND id="{}";'.format(casp,
-                                                                         target)
+    query = 'SELECT len FROM target WHERE id="{}";'.format(target)
     target_length = database.execute(query).fetchone()[0]
     ignore_residues = {}
 
     # Sum domain lengths if target length not specified
     if target_length is None:
-        query = "SELECT SUM(dlen) FROM domain_size WHERE casp={} AND target='{}' GROUP BY casp, target;".format(
-            casp, target)
+        query = "SELECT SUM(dlen) FROM domain_size WHERE target='{}' AND method={} GROUP BY target;".format(
+            target, method)
         target_length = database.execute(query).fetchone()[0]
 
     return target_length
