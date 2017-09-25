@@ -20,7 +20,7 @@ def pcons_domain_specifications(casp, target, database, method):
     """
 
     # Get the length of the target
-    target_length = get_length(target, method, database)
+    target_length = get_length(target, database, method)
     ignore_residues = {}
 
     # For every domain

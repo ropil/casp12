@@ -60,6 +60,9 @@ def main():
     parser.add_argument(
         "-transform", action="store_false", default=True,
         help="Disable transform of distances (expect scores)")
+    parser.add_argument(
+        "-write", action="store_true", default=False,
+        help="Write out pcons text-files")
     parser.add_argument('-v', '--version', action='version',
                         version=get_version_str())
     parser.add_argument(
@@ -76,6 +79,7 @@ def main():
     target_list = arguments.targets[0]
     target_casp = {}
     transform = arguments.transform
+    write = arguments.write
 
     pcons = which(pcons)
 
@@ -106,12 +110,15 @@ def main():
         # print(models)
         modelfile = pcons_write_model_file(targetdir, models)
         # print(modelfile)
-        length = get_length(casp, target, database)
+        length = get_length(target, database)
         pcons_results = read_pcons(run_pcons(modelfile, total_len=length, d0=d0, pcons_binary=pcons), transform_distance=transform, d0=3)
+        # Add store data in database directives here below
+        
         # output the joint model using the output function and naming convention
-        scorefile = get_scorefile_name(targetdir, method=method, partitioned=False)
-        with open(scorefile, 'w') as outfile:
-            write_scorefile(outfile, pcons_results[0], pcons_results[1], d0=d0)
+        if write:
+            scorefile = get_scorefile_name(targetdir, method=method, partitioned=False)
+            with open(scorefile, 'w') as outfile:
+                write_scorefile(outfile, pcons_results[0], pcons_results[1], d0=d0)
 
 
 if __name__ == '__main__':

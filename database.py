@@ -69,7 +69,7 @@ def create_result_database(db=":memory:"):
     CREATE TABLE model(id int PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text REFERENCES path(pathway), name text);
     CREATE TABLE qa(id int PRIMARY KEY, model int REFERENCES model(id), domain int REFERENCES domain(id), method int REFERENCES method(id));
     CREATE TABLE qascore(model int REFERENCES model(id), domain int REFERENCES domain(id), method int REFERENCES method(id), global int, local text, PRIMARY KEY (model, domain, method));
-    CREATE TABLE qacompound(id int PRIMARY KEY, method int REFERENCES method(id), global int, local text);
+    CREATE TABLE qacompound(id int PRIMARY KEY, method int REFERENCES method(id), model int REFERENCES model(id));
     CREATE TABLE qajoin(qa int REFERENCES qa(id), compound int REFERENCES qacompound(id), PRIMARY KEY (qa, compound));
     # Segment triggers;
     CREATE TRIGGER segment_length_insert AFTER INSERT ON segment FOR EACH ROW BEGIN UPDATE segment SET len = NEW.stop - NEW.start + 1 WHERE domain = NEW.domain AND start = NEW.start AND stop = NEW.stop; END;
@@ -100,7 +100,7 @@ def create_result_database(db=":memory:"):
     database.execute(
         "CREATE TABLE qascore(model int REFERENCES model(id), domain int REFERENCES domain(id), method int REFERENCES method(id), global int, local text, PRIMARY KEY (model, domain, method));")
     database.execute(
-        "CREATE TABLE qacompound(id int PRIMARY KEY, method int REFERENCES method(id), global int, local text);")
+        "CREATE TABLE qacompound(id int PRIMARY KEY, method int REFERENCES method(id), model int REFERENCES model(id));")
     database.execute(
         "CREATE TABLE qajoin(qa int REFERENCES qa(id), compound int REFERENCES qacompound(id), PRIMARY KEY (qa, compound));")
     # Segment triggers;

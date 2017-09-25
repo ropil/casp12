@@ -53,8 +53,8 @@ def main():
         "-db", nargs=1, metavar="file",
         help="Domain definition database")
     parser.add_argument(
-        "-method", nargs=1, default=[None], metavar="str",
-        help="Domain partition method name, default=None")
+        "-method", nargs=1, metavar="str",
+        help="Domain partition method name")
     parser.add_argument(
         "-pcons", nargs=1, default=["pcons"], metavar="str",
         help="Location of pcons binary, if not in path etc.")
@@ -66,6 +66,9 @@ def main():
         help="Disable transform of distances (expect scores)")
     parser.add_argument('-v', '--version', action='version',
                         version=get_version_str())
+    parser.add_argument(
+        "-write", action="store_true", default=False,
+        help="Write out pcons text-files")
     parser.add_argument(
         "files", nargs="*", metavar="PATH", help="Pathways to CASP data")
     arguments = parser.parse_args(argv[1:])
@@ -80,6 +83,7 @@ def main():
     target_list = arguments.targets[0]
     target_casp = {}
     transform = arguments.transform
+    write = arguments.write
 
     pcons = which(pcons)
 
@@ -105,31 +109,38 @@ def main():
     database = connect(sqlite_file)
     for target in target_list:
         casp = target_casp[target]
-        domains = get_domain(casp, target, database)
+        domains = get_domain(target, method, database)
         targetdir = targets[target]
         models = find_models(targetdir)
         # print(models)
-        pcons_write_model_file(targetdir, models)
-        modelfile = pcons_get_model_file_name(targetdir)
+        modelfile = pcons_write_model_file(targetdir, models)
+        # modelfile = pcons_get_model_file_name(targetdir)
         # print(modelfile)
-        length = get_length(casp, target, database)
+        length = get_length(target, database, method=method)
         pcons_results = {}
         for domain in domains:
+            # This below could be stored in the database as a path object
             ignorefile = pcons_get_domain_file_name(targetdir, domain,
                                                     method=method)
             # Run and parse results, keeping local scores only
             pcons_results[domain] = read_pcons(
-                run_pcons(modelfile, total_len=length, d0=d0, ignore_file=ignorefile,
-                          pcons_binary=pcons), transform_distance=transform,
-                d0=3)[1]
+                run_pcons(modelfile, total_len=length, d0=d0,
+                          ignore_file=ignorefile, pcons_binary=pcons),
+                transform_distance=transform, d0=3)[1]
+        # Store domain results in database here as QA and QAscores
+
         # Join the models here using joining function on the output
         # print(pcons_results)
         joint_quality = join_models(pcons_results, length)
+        # Store joint results in database here as QAscores, QAcompound and QAjoin
+
         # output the joint model using the output function and naming convention
-        scorefile = get_scorefile_name(targetdir, method=method,
-                                       partitioned=True)
-        with open(scorefile, 'w') as outfile:
-            write_scorefile(outfile, joint_quality[0], joint_quality[1], d0=d0)
+        if write:
+            scorefile = get_scorefile_name(targetdir, method=method,
+                                           partitioned=True)
+            with open(scorefile, 'w') as outfile:
+                write_scorefile(outfile, joint_quality[0], joint_quality[1],
+                                d0=d0)
 
 
 if __name__ == '__main__':

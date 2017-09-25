@@ -1,6 +1,7 @@
 from os import listdir, path
 from re import compile
 from sqlite3 import connect
+from casp12.database import method_type
 
 
 def find_targets(directory, regex="T\d{4}"):
@@ -74,21 +75,21 @@ def get_domains(casp, targets, database):
     return domains
 
 
-def get_domain(casp, target, database):
+def get_domain(target, method, database):
     """Get domain identifiers for each CASP target
 
-    :param casp: integer CASP experiment serial identifier
+    :param method: integer domain partitioner method identifier
     :param targets: target identifier, string
     :param database: sqlite3 connector object to domain definition database
     :return: List of domain identifiers, integers
     """
 
     # For every domain
-    query = "SELECT num FROM domain WHERE casp={} AND target='{}';".format(casp, target)
+    query = "SELECT component.domain FROM component INNER JOIN domain ON component.domain = domain.id WHERE component.target='{}' AND domain.method = {} ORDER BY component.num;".format(target, method)
     return [domain for (domain,) in database.execute(query)]
 
 
-def get_length(target, method, database):
+def get_length(target, database, method=None):
     """Get number of residues in target from database
 
     :param target: target ID, string
@@ -99,6 +100,12 @@ def get_length(target, method, database):
     query = 'SELECT len FROM target WHERE id="{}";'.format(target)
     target_length = database.execute(query).fetchone()[0]
     ignore_residues = {}
+
+    # Get first listed partitioner method stored in database, if not specified
+    # by user
+    if method is None:
+        query = 'SELECT id FROM method WHERE type = {} LIMIT 1'.format(method_type["partitioner"])
+        method = database.execute(query).fetchone()[0]
 
     # Sum domain lengths if target length not specified
     if target_length is None:
