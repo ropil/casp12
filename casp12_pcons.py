@@ -3,6 +3,7 @@ from casp12.interface.pcons import run_pcons, read_pcons, \
     write_scorefile, pcons_write_model_file, get_scorefile_name, which
 from casp12.interface.targets import find_targets, guess_casp_experiment, \
     find_models, get_length
+from casp12.database import get_or_add_method, store_qa
 from sqlite3 import connect
 
 '''
@@ -70,11 +71,15 @@ def main():
     arguments = parser.parse_args(argv[1:])
     files = arguments.files
 
+    # Method definition
+    method_name = "vanilla"
+    method_desc = "PCONS on full model, vanilla style"
+    method_type_name = "qa"
+
     # Set variables here
     d0 = arguments.d0[0]
     pcons = arguments.pcons[0]
     sqlite_file = arguments.db[0]
-    method = "vanilla"
     targets = {}
     target_list = arguments.targets[0]
     target_casp = {}
@@ -101,8 +106,12 @@ def main():
     else:
         target_list = set(targets.keys())
 
-    # Run PCONS for each target
+    # Insert vanilla method, if not found
     database = connect(sqlite_file)
+    # Check if exists
+    method = get_or_add_method(method_name, method_desc, method_type_name, database)
+
+    # Run PCONS for each target
     for target in target_list:
         casp = target_casp[target]
         targetdir = targets[target]
@@ -112,8 +121,9 @@ def main():
         # print(modelfile)
         length = get_length(target, database)
         pcons_results = read_pcons(run_pcons(modelfile, total_len=length, d0=d0, pcons_binary=pcons), transform_distance=transform, d0=3)
-        # Add store data in database directives here below
-        
+        # Store data in database directives here below
+        for model in pcons_results[0]:
+            store_qa(model, pcons_results[0][model], pcons_results[1][model], method, database)
         # output the joint model using the output function and naming convention
         if write:
             scorefile = get_scorefile_name(targetdir, method=method, partitioned=False)

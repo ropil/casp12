@@ -123,8 +123,8 @@ def join_models(pcons_domains, total_len):
     """Join separate PCONS assessments on domain partitions
 
     :param pcons_domains: Dictionary with domain identifiers as keys (integers)
-                          and dictionaries as values, which has targets as keys
-                          and PCONS score vectors as values.
+                          and score tuples as values, which has targets as keys
+                          and PCONS score floats/vectors as values.
     :param total_len: number of residues in the target sequence
     :return: tuple pair with two dictionaries using model identifiers as keys,
              the first dict containing global scores as values, the second local
@@ -135,13 +135,13 @@ def join_models(pcons_domains, total_len):
 
     # Joining of models
     for domain in pcons_domains:
-        for model in pcons_domains[domain]:
+        for model in pcons_domains[domain][1]:
             if not model in joined_domain_local:
                 joined_domain_local[model] = [None] * total_len
             for i in range(total_len):
-                if pcons_domains[domain][model][i] is not None:
+                if pcons_domains[domain][1][model][i] is not None:
                     joined_domain_local[model][i] = \
-                        pcons_domains[domain][model][i]
+                        pcons_domains[domain][1][model][i]
 
     # Collapsing of models
     for model in joined_domain_local:
@@ -149,6 +149,10 @@ def join_models(pcons_domains, total_len):
         # print("Model {} joined score = {}".format(model, joined_domain_global[model]))
 
     return (joined_domain_global, joined_domain_local)
+
+
+def read_local_scores(scores):
+    return [None if x == "X" else float(x) for x in scores]
 
 
 def read_pcons(output, transform_distance=True, d0=3, regex="^\S+_TS\d+"):
@@ -171,7 +175,8 @@ def read_pcons(output, transform_distance=True, d0=3, regex="^\S+_TS\d+"):
             temp = line.rstrip().split()
             key = temp[0]
             score_global[key] = float(temp[1]) if temp[1] != 'X' else None
-            scores = [None if x == "X" else float(x) for x in temp[2:]]
+            #scores = [None if x == "X" else float(x) for x in temp[2:]]
+            scores = read_local_scores(temp[2:])
             if transform_distance:
                 score_local[key] = d2S(scores, d0)
                 score_global[key] = d2S([score_global[key]], d0)[0]
@@ -267,6 +272,10 @@ def get_scorefile_name(directory, method=None, partitioned=False):
     return path.join(directory, "pcons{}{}.pcn".format(domain_ext, method_ext))
 
 
+def write_local_scores(scores):
+    return " ".join(["X" if x is None else "{:.3f}".format(x) for x in scores])
+
+
 def write_scorefile(outfile, global_score, local_score, d0=3):
     """Print a PCONS score file given local and global score dictionaries
 
@@ -299,11 +308,12 @@ def write_scorefile(outfile, global_score, local_score, d0=3):
         # Global score
         outfile.write("%s %.3f" % (model, S2d([score], d0=d0)[0]))
         # Local scores
-        for value in S2d(local_score[model], d0=d0):
-            if value is None:
-                outfile.write(" X")
-            else:
-                outfile.write(" %.3f" % value)
+        outfile.write(write_local_scores(S2d(local_score[model], d0=d0)))
+        # for value in S2d(local_score[model], d0=d0):
+        #     if value is None:
+        #         outfile.write(" X")
+        #     else:
+        #         outfile.write(" %.3f" % value)
         outfile.write("\n")
 
 

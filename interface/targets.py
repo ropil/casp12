@@ -58,19 +58,19 @@ def guess_casp_experiment(directory, regex="[Cc][Aa][Ss][Pp](\d+)"):
     return None
 
 
-def get_domains(casp, targets, database):
+def get_domains(targets, method, database):
     """Get domain identifiers for each CASP target
 
-    :param casp: integer CASP experiment serial identifier
     :param targets: list of target indentifiers, each as a string
+    :param method: integer id of domain partitioning method
     :param database: sqlite3 connector object to domain definition database
-    :return: dictionary with target ID's as keys and lists of domain ID's as
-             values
+    :return: dictionary with target ID's as keys and a tuple of lists of domain
+             ID's and values
     """
     domains = {}
 
     for target in targets:
-        domains[target] = get_domain(casp, target, database)
+        domains[target] = get_domain(target, method, database)
 
     return domains
 
@@ -81,12 +81,27 @@ def get_domain(target, method, database):
     :param method: integer domain partitioner method identifier
     :param targets: target identifier, string
     :param database: sqlite3 connector object to domain definition database
-    :return: List of domain identifiers, integers
+    :return: tuple of List of component numberings and domain identifiers,
+             as integers
     """
 
     # For every domain
-    query = "SELECT component.domain FROM component INNER JOIN domain ON component.domain = domain.id WHERE component.target='{}' AND domain.method = {} ORDER BY component.num;".format(target, method)
-    return [domain for (domain,) in database.execute(query)]
+    query = "SELECT component.num, component.domain FROM component INNER JOIN domain ON component.domain = domain.id WHERE component.target='{}' AND domain.method = {} ORDER BY component.num;".format(target, method)
+    components, domains = zip(*database.execute(query))
+    return (list(components), list(domains))
+
+
+def get_domain_number(target, domain, database):
+    """Get domain numberings for a domain if it is present in target
+
+    :param target: integer id of target to check
+    :param domain: integer id of domain to find
+    :param database: database connection to use
+    :return: list of integer numberings for domain found
+    """
+    query = "SELECT num FROM component WHERE target='{}' AND domain = {} ORDER BY num".format(target, domain)
+    return [num for (num,) in database.execute(query)]
+
 
 
 def get_length(target, database, method=None):
