@@ -249,6 +249,7 @@ def get_or_add_method(method_name, method_desc, method_type_name, database):
 
     query = 'SELECT id FROM method WHERE name = "{}" AND description = "{}" AND type = {} LIMIT 1'.format(
         method_name, method_desc, method_type[method_type_name])
+    print(query)
     method = database.execute(query).fetchone()
 
     # Otherwise insert a new method

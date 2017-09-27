@@ -4,7 +4,7 @@ from casp12.interface.pcons import join_models, run_pcons, read_pcons, \
     pcons_write_model_file, get_scorefile_name, which
 from casp12.interface.targets import find_targets, guess_casp_experiment, \
     get_domain, find_models, get_length
-from casp12.database import get_or_add_method, store_qa, store_qa_compounded
+from casp12.database import get_or_add_method, store_qa, store_qa_compounded, store_models_and_servers
 from sqlite3 import connect
 
 '''
@@ -118,6 +118,7 @@ def main():
     # Determine method ID
     database = connect(sqlite_file)
     method = get_or_add_method(method_name, method_desc, method_type_name, database)
+    vanilla_method = get_or_add_method("vanilla", "PCONS on full model, vanilla style", "qa", database)
 
 
     # Run PCONS for each target and domain, then join the PCONS models
@@ -144,12 +145,19 @@ def main():
         # Store domain results in database here as QA and QAscores
         qas = {}
         for domain in pcons_results:
+            # Store new servers and models, this actually only needs to be run
+            # once, but since we do not know if the domains will all have the
+            # same number of servers and models per server assessed, we can keep
+            # it in the full loop for generality
+            (servers, modeltuples, filenames, servermethods,
+             model_id) = store_models_and_servers(target, pcons_results[domain],
+                                                  database)
             # this query could be dropped if we added this information to
             # get_domain, which is called above in the loop.
             query = 'SELECT domain.method, component.id FROM domain INNER JOIN component ON domain.id = component.domain WHERE domain.id = {}'.format(domain)
             (partition_method, component) = database.execute(query).fetchone()
             for model in pcons_results[domain][0]:
-                qa = store_qa(model, pcons_results[domain][0][model], pcons_results[domain][1][model], partition_method, database, component=component)
+                qa = store_qa(model_id[modeltuples[model]], pcons_results[domain][0][model], pcons_results[domain][1][model], vanilla_method, database, component=component)
                 # Initiate new empty lists of QA IDs if a new model is found
                 if model not in qas:
                     qas[model] = []
