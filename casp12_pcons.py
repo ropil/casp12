@@ -3,7 +3,7 @@ from casp12.interface.pcons import run_pcons, read_pcons, \
     write_scorefile, pcons_write_model_file, get_scorefile_name, which
 from casp12.interface.targets import find_targets, guess_casp_experiment, \
     find_models, get_length
-from casp12.database import get_or_add_method, store_qa
+from casp12.database import get_or_add_method, store_qa, store_models_and_servers, save_or_dump
 from sqlite3 import connect
 
 '''
@@ -108,7 +108,6 @@ def main():
 
     # Insert vanilla method, if not found
     database = connect(sqlite_file)
-    # Check if exists
     method = get_or_add_method(method_name, method_desc, method_type_name, database)
 
     # Run PCONS for each target
@@ -121,14 +120,21 @@ def main():
         # print(modelfile)
         length = get_length(target, database)
         pcons_results = read_pcons(run_pcons(modelfile, total_len=length, d0=d0, pcons_binary=pcons), transform_distance=transform, d0=3)
+        # Store new servers and models
+        (servers, modeltuples, filenames, servermethods,
+         model_id) = store_models_and_servers(target, pcons_results, database)
         # Store data in database directives here below
         for model in pcons_results[0]:
-            store_qa(model, pcons_results[0][model], pcons_results[1][model], method, database)
+            thisid = model_id[modeltuples[model]]
+            store_qa(thisid, pcons_results[0][model], pcons_results[1][model], method, database)
         # output the joint model using the output function and naming convention
         if write:
             scorefile = get_scorefile_name(targetdir, method=method, partitioned=False)
             with open(scorefile, 'w') as outfile:
                 write_scorefile(outfile, pcons_results[0], pcons_results[1], d0=d0)
+
+    # commit and close database
+    save_or_dump(database, sqlite_file)
 
 
 if __name__ == '__main__':

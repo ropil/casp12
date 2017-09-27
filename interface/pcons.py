@@ -4,7 +4,7 @@ from operator import itemgetter
 from os import path
 from statistics import mean, StatisticsError
 from subprocess import check_output
-from casp12.interface.targets import get_length
+from .targets import get_length
 import resource
 
 
@@ -54,7 +54,7 @@ def pcons_get_domain_file_name(directory, domain, method=None):
     """
     method_ext = ""
     if method is not None:
-        method_ext = "_{:02}".format(method)
+        method_ext = "_{:02d}".format(method)
     return path.join(directory,
                      "pcons_domain_{}{}.ign".format(domain, method_ext))
 
@@ -268,7 +268,7 @@ def get_scorefile_name(directory, method=None, partitioned=False):
     if partitioned:
         domain_ext = "_domain"
     if method is not None:
-        method_ext = "_" + method
+        method_ext = "_{:02d}".format(method)
     return path.join(directory, "pcons{}{}.pcn".format(domain_ext, method_ext))
 
 

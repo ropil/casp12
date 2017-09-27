@@ -1,7 +1,7 @@
 from os import listdir, path
 from re import compile
 from sqlite3 import connect
-from casp12.database import method_type
+from ..definitions import method_type
 
 
 def find_targets(directory, regex="T\d{4}"):
@@ -41,6 +41,39 @@ def find_models(directory, regexes=["\S+_TS\d+\.pdb\Z", "\S+_TS\d+\Z"]):
     if len(models) == 0:
         raise FileNotFoundError('Could not find any models files in "{}"'.format(directory))
     return models
+
+
+def identify_models_and_servers(modeldict, regex="(\S+)_TS(\d+)"):
+    """Parses filenames into server and model dictionaries
+
+    :param modeldict: dictionary of models filename as keys with pathnames as
+                      values
+    :param regex: string of regex to use for parsing filenames
+    :return: tuple with dictionary of, in order,
+             1) server names as keys and lists with model numbers as integers
+             2) pcons model name as keys and tuple of server name and model
+                number as values
+             3) tuple of server names and model integers as keys and model file
+                pathnames as values
+    """
+    nameregex = compile(regex)
+    servers = {}
+    modeltuples = {}
+    filenames = {}
+    for entry in modeldict:
+        # parse filename
+        (server, model) = nameregex.search(entry).group(1, 2)
+        model = int(model)
+        # Add a list for any new servers
+        if server not in servers:
+            servers[server] = []
+        # Set server and model dictionaries to point to each other
+        servers[server].append(model)
+        modeltuples[entry] = (server, model)
+        # Save filename in a tuple accessed dictionary
+        filenames[(server, model)] = modeldict[entry]
+
+    return servers, modeltuples, filenames
 
 
 def guess_casp_experiment(directory, regex="[Cc][Aa][Ss][Pp](\d+)"):

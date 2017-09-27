@@ -1,8 +1,7 @@
-from sqlite3 import connect
-from casp12.interface.pcons import write_local_scores
-
-
-method_type = {"server" : 0, "partitioner" : 1, "qa" : 2, "compounder" : 3 }
+from sqlite3 import connect, IntegrityError
+from .interface.pcons import write_local_scores
+from .interface.targets import identify_models_and_servers
+from .definitions import method_type
 
 
 def create_database(db=":memory:"):
@@ -67,8 +66,8 @@ def create_result_database(db=":memory:"):
     CREATE TABLE domain(id INTEGER PRIMARY KEY ASC, method int REFERENCES method(id));
     CREATE TABLE component(id INTEGER PRIMARY KEY, target text REFERENCES target(id), num int, domain int REFERENCES domain(id));
     CREATE TABLE segment(start int, stop int, len int, domain int REFERENCES domain(id), PRIMARY KEY (start, domain));
-    CREATE TABLE model(id int PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text REFERENCES path(pathway), name text);
-    CREATE TABLE qa(id INTEGER PRIMARY KEY, model int REFERENCES model(id), component int REFERENCES component(id), method int REFERENCES method(id));
+    CREATE TABLE model(id INTEGER PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text UNIQUE REFERENCES path(pathway), name text, UNIQUE(method, target, name));
+    CREATE TABLE qa(id INTEGER PRIMARY KEY, model int REFERENCES model(id), component int REFERENCES component(id), method int REFERENCES method(id), UNIQUE (model, component, method));
     CREATE TABLE qascore(qa int REFERENCES qa(id) PRIMARY KEY, global float, local text);
     CREATE TABLE qajoin(qa int REFERENCES qa(id), compound int REFERENCES qa(id), PRIMARY KEY (qa, compound));
     # Segment triggers;
@@ -94,9 +93,11 @@ def create_result_database(db=":memory:"):
     database.execute(
         "CREATE TABLE segment(start int, stop int, len int, domain int REFERENCES domain(id), PRIMARY KEY (start, domain));")
     database.execute(
-        "CREATE TABLE model(id int PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text REFERENCES path(pathway), name text);")
+        "CREATE TABLE model(id INTEGER PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text UNIQUE REFERENCES path(pathway), name text, UNIQUE(method, target, name));")
+        #"CREATE TABLE model(id INTEGER PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text REFERENCES path(pathway), name text);")
     database.execute(
-        "CREATE TABLE qa(id INTEGER PRIMARY KEY, model int REFERENCES model(id), component int REFERENCES component(id), method int REFERENCES method(id));")
+        "CREATE TABLE qa(id INTEGER PRIMARY KEY, model int REFERENCES model(id), component int REFERENCES component(id), method int REFERENCES method(id), UNIQUE (model, component, method));")
+        #"CREATE TABLE qa(id INTEGER PRIMARY KEY, model int UNIQUE REFERENCES model(id), component int UNIQUE REFERENCES component(id), method int UNIQUE REFERENCES method(id));")
     database.execute(
         "CREATE TABLE qascore(qa int REFERENCES qa(id) PRIMARY KEY, global float, local text);")
     database.execute(
@@ -124,10 +125,19 @@ def store_qa(model, global_score, local_score, qa_method, database, component=No
                       method
     :return: id of QA entry created
     """
-    query = 'INSERT INTO qa (model, component, method) VALUES ({}, {}, {})'.format(model, component, qa_method)
-    database.execute(query)
-    # Get auto-generated quality assessment ID
-    qa_id = database.execute("SELECT last_insert_rowid();").fetchone()
+
+    # check if there is already a unique qa entry
+    query = 'SELECT id FROM qa WHERE model = {} AND component {} AND method = {};'.format(model, "IS NULL" if component is None else "= " + component, qa_method)
+    qa_id = database.execute(query).fetchone()
+    print(query)
+    print(qa_id)
+    if qa_id is None:
+        query = 'INSERT INTO qa (model, component, method) VALUES ({}, {}, {})'.format(model, "NULL" if component is None else component, qa_method)
+        database.execute(query)
+        # Get auto-generated quality assessment ID
+        qa_id = database.execute("SELECT last_insert_rowid();").fetchone()
+    qa_id = qa_id[0]
+    # Insert new or overwrite qascore entry
     query = 'INSERT INTO qascore (qa, global, local) VALUES ({}, {:.3f}, "{}")'.format(qa_id, global_score, write_local_scores(local_score))
     database.execute(query)
     return qa_id
@@ -144,18 +154,86 @@ def store_qa_compounded(model, qas,  global_score, local_score, cmp_method, data
     :param database: database connection
     :return: integer id of QA entry created
     """
+
     # Store compounded entry
-    query = 'INSERT INTO qa (model, component, method) VALUES ({}, {}, {})'.format(model, None, cmp_method)
-    database.execute(query)
-    qa_cmp_id = database.execute("SELECT last_insert_rowid();").fetchone()
-    # Store score
-    query = 'INSERT INTO qascore (qa, global, local) VALUES ({}, {:.3f}, "{}")'.format(qa_cmp_id, global_score, write_local_scores(local_score))
-    database.execute(query)
+    qa_cmp_id = store_qa(model, global_score, local_score, cmp_method, database)
+
+    # query = 'INSERT INTO qa (model, component, method) VALUES ({}, {}, {})'.format(model, "NULL", cmp_method)
+    # database.execute(query)
+    # qa_cmp_id = database.execute("SELECT last_insert_rowid();").fetchone()
+    # # Store score
+    # query = 'INSERT INTO qascore (qa, global, local) VALUES ({}, {:.3f}, "{}")'.format(qa_cmp_id, global_score, write_local_scores(local_score))
+    # database.execute(query)
+
     # for every entry in qas, generate a QAjoin entry
     for qa in qas:
-        query = 'INSERT INTO qascore (qa, compound) VALUES ({}, {})'.format(qa, qa_cmp_id)
+        query = 'INSERT INTO qajoin (qa, compound) VALUES ({}, {})'.format(qa, qa_cmp_id)
         database.execute(query)
     return qa_cmp_id
+
+
+def store_servers(servers, database):
+    """Store or fetch server methods in/from database
+
+    :param servers: iterable yielding server names
+    :param database: database connection
+    :return: dictionary with server names as keys and integer method ID's as
+             values
+    """
+    server_methods = {}
+    for server in servers:
+        server_methods[server] = get_or_add_method(server, "", "server",
+                                                   database)
+    return server_methods
+
+
+def store_models(target, servers, servermethods, database):
+    """Store models in database
+
+    :param target: integer target ID that models pertain to
+    :param models: dictionary with server names as keys and lists of model
+                   numbers as values
+    :param servermethods: dictionary with server names as keys and integer
+                          server method ID's as values
+    :param database: database connection
+    :return: dictionary with tuples of server name and model number as keys and
+             integer model ID as values
+    """
+
+    model_id = {}
+    for server in servers:
+        # identify servermethod ID
+        servermethod = servermethods[server]
+        for model in servers[server]:
+            # CREATE TABLE model(id INTEGER PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text REFERENCES path(pathway), name text);
+            query = 'INSERT INTO model (method, target, name) VALUES ({}, "{}", "{:02d}")'.format(servermethod, target, model)
+            try:
+                database.execute(query)
+                model_id[(server, model)] = \
+                database.execute("SELECT last_insert_rowid();").fetchone()[0]
+            except IntegrityError:
+                query = 'SELECT id FROM model WHERE method = {} AND target = "{}" AND name = "{:02d}"'.format(servermethod, target, model)
+                model_id[(server, model)] = database.execute(query).fetchone()[0]
+    return model_id
+
+
+def store_models_and_servers(target, results, database):
+    """Stores new servers and models; wrapper for store_servers and store_models
+
+    :param target: text target ID that models pertain to
+    :param results: pcons results tuple as parsed by this library, see
+                    identify_models_and_servers
+    :param database: database connection
+    :return: returns all returnables generated by, and in order
+             1) identify_models_and_servers
+             2) store_servers
+             3) store_models
+    """
+    (servers, modeltuples, filenames) = identify_models_and_servers(results[0])
+    servermethods = store_servers(servers, database)
+    model_id = store_models(target, servers, servermethods, database)
+
+    return servers, modeltuples, filenames, servermethods, model_id
 
 
 def get_or_add_method(method_name, method_desc, method_type_name, database):
@@ -181,3 +259,18 @@ def get_or_add_method(method_name, method_desc, method_type_name, database):
         method = database.execute("SELECT last_insert_rowid();").fetchone()
 
     return method[0]
+
+
+def save_or_dump(database, datafile):
+    """Commit and close database, or dump to STDOUT
+
+    :param database: database connection
+    :param datafile: string with database filename, if None; blurt out to STDOUT
+    """
+    if datafile is not None:
+        database.commit()
+        database.close()
+    else:
+        # or blurt sql-dump to stdout, if no database specified
+        for line in database.iterdump():
+            print(line)

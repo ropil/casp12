@@ -1,0 +1,1 @@
+method_type = {"server" : 0, "partitioner" : 1, "qa" : 2, "compounder" : 3 }
