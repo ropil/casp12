@@ -138,7 +138,7 @@ def store_qa(model, global_score, local_score, qa_method, database, component=No
         qa_id = database.execute("SELECT last_insert_rowid();").fetchone()
     qa_id = qa_id[0]
     # Insert new or overwrite qascore entry
-    query = 'INSERT INTO qascore (qa, global, local) VALUES ({}, {:.3f}, "{}")'.format(qa_id, global_score, write_local_scores(local_score))
+    query = 'INSERT OR REPLACE INTO qascore (qa, global, local) VALUES ({}, {:.3f}, "{}")'.format(qa_id, global_score, write_local_scores(local_score))
     database.execute(query)
     return qa_id
 
