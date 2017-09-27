@@ -127,7 +127,7 @@ def store_qa(model, global_score, local_score, qa_method, database, component=No
     """
 
     # check if there is already a unique qa entry
-    query = 'SELECT id FROM qa WHERE model = {} AND component {} AND method = {};'.format(model, "IS NULL" if component is None else "= " + component, qa_method)
+    query = 'SELECT id FROM qa WHERE model = {} AND component {} AND method = {};'.format(model, "IS NULL" if component is None else "= {}".format(component), qa_method)
     qa_id = database.execute(query).fetchone()
     print(query)
     print(qa_id)
@@ -165,9 +165,18 @@ def store_qa_compounded(model, qas,  global_score, local_score, cmp_method, data
     # query = 'INSERT INTO qascore (qa, global, local) VALUES ({}, {:.3f}, "{}")'.format(qa_cmp_id, global_score, write_local_scores(local_score))
     # database.execute(query)
 
+    # Remove all known old QAjoins from the join table
+    query = 'DELETE FROM qajoin WHERE compound = {};'.format(qa_cmp_id)
+    database.execute(query)
+
     # for every entry in qas, generate a QAjoin entry
     for qa in qas:
         query = 'INSERT INTO qajoin (qa, compound) VALUES ({}, {})'.format(qa, qa_cmp_id)
+        # If query fails, do nothing, all is good
+        # try:
+        #     database.execute(query)
+        # except IntegrityError:
+        #     pass
         database.execute(query)
     return qa_cmp_id
 

@@ -4,7 +4,7 @@ from casp12.interface.pcons import join_models, run_pcons, read_pcons, \
     pcons_write_model_file, get_scorefile_name, which
 from casp12.interface.targets import find_targets, guess_casp_experiment, \
     get_domain, find_models, get_length
-from casp12.database import get_or_add_method, store_qa, store_qa_compounded, store_models_and_servers
+from casp12.database import get_or_add_method, store_qa, store_qa_compounded, store_models_and_servers, save_or_dump
 from sqlite3 import connect
 
 '''
@@ -53,9 +53,9 @@ def main():
     parser.add_argument(
         "-db", nargs=1, metavar="file",
         help="Domain definition database")
-    # parser.add_argument(
-    #     "-method", nargs=1, metavar="str",
-    #     help="Domain partition method name")
+    parser.add_argument(
+        "-domainmethod", nargs=1, metavar="int",
+        help="Domain partition method ID, as stored in DB (.e. check DB)")
     parser.add_argument(
         "-pcons", nargs=1, default=["pcons"], metavar="str",
         help="Location of pcons binary, if not in path etc.")
@@ -87,7 +87,7 @@ def main():
     d0 = arguments.d0[0]
     pcons = arguments.pcons[0]
     sqlite_file = arguments.db[0]
-    # method = arguments.method[0]
+    domainmethod = int(arguments.domainmethod[0])
 
     targets = {}
     target_list = arguments.targets[0]
@@ -124,19 +124,19 @@ def main():
     # Run PCONS for each target and domain, then join the PCONS models
     for target in target_list:
         casp = target_casp[target]
-        (components, domains) = get_domain(target, method, database)
+        (components, domains) = get_domain(target, domainmethod, database)
         targetdir = targets[target]
         models = find_models(targetdir)
         # print(models)
         modelfile = pcons_write_model_file(targetdir, models)
         # modelfile = pcons_get_model_file_name(targetdir)
         # print(modelfile)
-        length = get_length(target, database, method=method)
+        length = get_length(target, database, method=domainmethod)
         pcons_results = {}
         for (num, domain) in zip(components, domains):
             # This below could be stored in the database as a path object
             ignorefile = pcons_get_domain_file_name(targetdir, num,
-                                                    method=method)
+                                                    method=domainmethod)
             # Run and parse results
             pcons_results[domain] = read_pcons(
                 run_pcons(modelfile, total_len=length, d0=d0,
@@ -144,14 +144,9 @@ def main():
                 transform_distance=transform, d0=3)
         # Store domain results in database here as QA and QAscores
         qas = {}
+        (servers, modeltuples, filenames, servermethods,
+         model_id) = store_models_and_servers(target, pcons_results[next(iter(pcons_results))], database)
         for domain in pcons_results:
-            # Store new servers and models, this actually only needs to be run
-            # once, but since we do not know if the domains will all have the
-            # same number of servers and models per server assessed, we can keep
-            # it in the full loop for generality
-            (servers, modeltuples, filenames, servermethods,
-             model_id) = store_models_and_servers(target, pcons_results[domain],
-                                                  database)
             # this query could be dropped if we added this information to
             # get_domain, which is called above in the loop.
             query = 'SELECT domain.method, component.id FROM domain INNER JOIN component ON domain.id = component.domain WHERE domain.id = {}'.format(domain)
@@ -167,7 +162,11 @@ def main():
         joint_quality = join_models(pcons_results, length)
         # Store joint results in database here as QAscores, QAcompound and QAjoin
         for model in joint_quality[0]:
-            store_qa_compounded(model, qas[model], joint_quality[0][model], joint_quality[1][model], method, database)
+            store_qa_compounded(model_id[modeltuples[model]], qas[model], joint_quality[0][model], joint_quality[1][model], method, database)
+
+        # Commit database
+        save_or_dump(database, sqlite_file)
+
         # output the joint model using the output function and naming convention
         if write:
             scorefile = get_scorefile_name(targetdir, method=method,

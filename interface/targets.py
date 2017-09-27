@@ -119,7 +119,8 @@ def get_domain(target, method, database):
     """
 
     # For every domain
-    query = "SELECT component.num, component.domain FROM component INNER JOIN domain ON component.domain = domain.id WHERE component.target='{}' AND domain.method = {} ORDER BY component.num;".format(target, method)
+    query = "SELECT component.num, component.domain FROM component INNER JOIN domain ON component.domain = domain.id WHERE component.target = '{}' AND domain.method = {} ORDER BY component.num;".format(target, method)
+    print(query)
     components, domains = zip(*database.execute(query))
     return (list(components), list(domains))
 
