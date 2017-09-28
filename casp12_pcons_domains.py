@@ -117,7 +117,9 @@ def main():
 
     # Determine method ID
     database = connect(sqlite_file)
-    method = get_or_add_method(method_name, method_desc, method_type_name, database)
+    method = get_or_add_method(
+        method_name + " on partitioner {}".format(domainmethod), method_desc,
+        method_type_name, database)
     vanilla_method = get_or_add_method("vanilla", "PCONS on full model, vanilla style", "qa", database)
 
 
@@ -164,9 +166,6 @@ def main():
         for model in joint_quality[0]:
             store_qa_compounded(model_id[modeltuples[model]], qas[model], joint_quality[0][model], joint_quality[1][model], method, database)
 
-        # Commit database
-        save_or_dump(database, sqlite_file)
-
         # output the joint model using the output function and naming convention
         if write:
             scorefile = get_scorefile_name(targetdir, method=method,
@@ -174,6 +173,9 @@ def main():
             with open(scorefile, 'w') as outfile:
                 write_scorefile(outfile, joint_quality[0], joint_quality[1],
                                 d0=d0)
+
+    # Commit database
+    save_or_dump(database, sqlite_file)
 
 
 if __name__ == '__main__':
