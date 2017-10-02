@@ -4,6 +4,12 @@ from .interface.targets import identify_models_and_servers
 from .definitions import method_type
 
 
+
+
+def add_table_casp_server(database):
+    pass
+
+
 def create_database(db=":memory:"):
     # Create in-memory
     """Creates the database, in memory, to use for analyzing domain partitions
@@ -58,17 +64,21 @@ def create_result_database(db=":memory:"):
     :return: the database connection handle
     """
 
+
     '''Copy the following to sqlite3 prompt to try it in console
     CREATE TABLE path(pathway text PRIMARY KEY);
     CREATE TABLE casp(id int PRIMARY KEY, path REFERENCES path(pathway));
     CREATE TABLE method(id INTEGER PRIMARY KEY ASC, name text, description text, type int);
+    CREATE TABLE caspserver(id int, method int REFERENCES method(id), type text, PRIMARY KEY (id, method));
+    CREATE TABLE competesin(caspserver int REFERENCES caspserver(id), casp int REFERENCES casp(id), PRIMARY KEY (caspserver, casp));
     CREATE TABLE target(id text, len int, casp int REFERENCES casp(id), path text REFERENCES path(pathway), PRIMARY KEY (id));
     CREATE TABLE domain(id INTEGER PRIMARY KEY ASC, method int REFERENCES method(id));
     CREATE TABLE component(id INTEGER PRIMARY KEY, target text REFERENCES target(id), num int, domain int REFERENCES domain(id));
     CREATE TABLE segment(start int, stop int, len int, domain int REFERENCES domain(id), PRIMARY KEY (start, domain));
     CREATE TABLE model(id INTEGER PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text UNIQUE REFERENCES path(pathway), name text, UNIQUE(method, target, name));
     CREATE TABLE qa(id INTEGER PRIMARY KEY, model int REFERENCES model(id), component int REFERENCES component(id), method int REFERENCES method(id), UNIQUE (model, component, method));
-    CREATE TABLE qascore(qa int REFERENCES qa(id) PRIMARY KEY, global float, local text);
+    CREATE TABLE qascore(qa int REFERENCES qa(id) PRIMARY KEY, global real);
+    CREATE TABLE lscore(model int REFERENCES model(id), qa int REFERENCES qa(id), residue int, score real, PRIMARY KEY (model, qa, residue));
     CREATE TABLE qajoin(qa int REFERENCES qa(id), compound int REFERENCES qa(id), PRIMARY KEY (qa, compound));
     # Segment triggers;
     CREATE TRIGGER segment_length_insert AFTER INSERT ON segment FOR EACH ROW BEGIN UPDATE segment SET len = NEW.stop - NEW.start + 1 WHERE domain = NEW.domain AND start = NEW.start AND stop = NEW.stop; END;
@@ -85,6 +95,10 @@ def create_result_database(db=":memory:"):
     database.execute(
         "CREATE TABLE method(id INTEGER PRIMARY KEY ASC, name text, description text, type int);")
     database.execute(
+        "CREATE TABLE caspserver(id int, method int REFERENCES method(id), type text, PRIMARY KEY (id, method));")
+    database.execute(
+        "CREATE TABLE competesin(caspserver int REFERENCES caspserver(id), casp int REFERENCES casp(id), PRIMARY KEY (caspserver, casp));")
+    database.execute(
         "CREATE TABLE target(id text, len int, casp int REFERENCES casp(id), path text REFERENCES path(pathway), PRIMARY KEY (id));")
     database.execute(
         "CREATE TABLE domain(id INTEGER PRIMARY KEY ASC, method int REFERENCES method(id));")
@@ -99,7 +113,9 @@ def create_result_database(db=":memory:"):
         "CREATE TABLE qa(id INTEGER PRIMARY KEY, model int REFERENCES model(id), component int REFERENCES component(id), method int REFERENCES method(id), UNIQUE (model, component, method));")
         #"CREATE TABLE qa(id INTEGER PRIMARY KEY, model int UNIQUE REFERENCES model(id), component int UNIQUE REFERENCES component(id), method int UNIQUE REFERENCES method(id));")
     database.execute(
-        "CREATE TABLE qascore(qa int REFERENCES qa(id) PRIMARY KEY, global float, local text);")
+        "CREATE TABLE qascore(qa int REFERENCES qa(id) PRIMARY KEY, global real);")
+    database.execute(
+        "CREATE TABLE lscore(model int REFERENCES model(id), qa int REFERENCES qa(id), residue int, score real, PRIMARY KEY (model, qa, residue));")
     database.execute(
         "CREATE TABLE qajoin(qa int REFERENCES qa(id), compound int REFERENCES qacompound(id), PRIMARY KEY (qa, compound));")
     # Segment triggers;
@@ -138,8 +154,9 @@ def store_qa(model, global_score, local_score, qa_method, database, component=No
         qa_id = database.execute("SELECT last_insert_rowid();").fetchone()
     qa_id = qa_id[0]
     # Insert new or overwrite qascore entry
-    query = 'INSERT OR REPLACE INTO qascore (qa, global, local) VALUES ({}, {:.3f}, "{}")'.format(qa_id, global_score, write_local_scores(local_score))
+    query = 'INSERT OR REPLACE INTO qascore (qa, global) VALUES ({}, {:.3f})'.format(qa_id, global_score)
     database.execute(query)
+    store_local_score(model, qa_id, local_score, database)
     return qa_id
 
 
@@ -181,6 +198,26 @@ def store_qa_compounded(model, qas,  global_score, local_score, cmp_method, data
     return qa_cmp_id
 
 
+def store_local_score(model, qa, local_score, database):
+    """Store a list of local scores in database
+
+    :param model: integer id of model evaluated
+    :param qa: integer id of the quality assessment that the score pertains to
+    :param local_score: list of floats with local scores
+    :param database: database connection
+    """
+    # Create the table
+    query = "CREATE TABLE IF NOT EXISTS lscore(model int REFERENCES model(id), qa int REFERENCES qa(id), residue int, score real, PRIMARY KEY (model, qa, residue));"
+    database.execute(query)
+
+    # Store the data
+    query = 'INSERT OR REPLACE INTO lscore (model, qa, rediue, score) VALUES (?, ?, ?, ?)'
+    for (residue, score) in enumerate(local_score, start=1):
+        # only store the existing assessments
+        if score is not None:
+            database.execute(query, (model, qa, residue, score))
+
+
 def store_servers(servers, database):
     """Store or fetch server methods in/from database
 
@@ -194,6 +231,30 @@ def store_servers(servers, database):
         server_methods[server] = get_or_add_method(server, "", "server",
                                                    database)
     return server_methods
+
+
+def store_caspservers(servers, casp, database):
+    database.execute(
+        "CREATE TABLE IF NOT EXISTS caspserver(id int, method int REFERENCES method(id), type text, PRIMARY KEY (id, method));")
+    database.execute(
+        "CREATE TABLE IF NOT EXISTS competesin(caspserver int REFERENCES caspserver(id), casp int REFERENCES casp(id), PRIMARY KEY (caspserver, casp));")
+
+    added = {}
+    for server in servers:
+        query = 'SELECT id FROM method WHERE name = ?;'
+        print(servers[server][0])
+        method = database.execute(query, (servers[server][0],)).fetchone()
+        if method is not None:
+            method = method[0]
+            method = method[0]
+            method = method[0]
+            query = 'INSERT OR REPLACE INTO caspserver (id, method, type) VALUES (?, ?, ?);'
+            database.execute(query, (server, method, servers[server][1]))
+            query = 'INSERT OR REPLACE INTO competesin (caspserver, casp) VALUES (?, ?)'
+            database.execute(query, (server, casp))
+            added[server] = servers[server][0]
+
+    return added
 
 
 def store_models(target, servers, servermethods, database):
