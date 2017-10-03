@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from re import compile
 from sqlite3 import connect
-from casp12.database import create_result_database, method_type
+from casp12.database import create_result_database, store_domains
 
 '''
  Analyze domain partition distribution in target set, storing result in database
@@ -47,52 +47,6 @@ def read_domain(infile):
         segdef = [int(x) for x in line.split()]
         domains.append([segdef[i:i + 2] for i in range(0, len(segdef), 2)])
     return domains
-
-
-def store_domains(domains, database, method, casp=12):
-    # Check if CASP is present, or create it
-    if database.execute(
-            "SELECT EXISTS (SELECT * FROM casp WHERE id = {} LIMIT 1);".format(
-                casp)).fetchone()[0] == 0:
-        database.execute("INSERT INTO casp (id) VALUES ({});".format(casp))
-    # Create new method if not specified
-    if method is None:
-        database.execute('INSERT INTO method (name, description, type) VALUES ("{}", "{}", {});'.format("Unkonwn Partitioner", "Automatically inserted unknown partition method", method_type["partitioner"]))
-        method = database.execute("SELECT last_insert_rowid();").fetchone()[0]
-    # Or insert new if specified but does not exist
-    elif database.execute(
-            "SELECT EXISTS (SELECT * FROM method WHERE id = {} LIMIT 1);".format(
-                method)).fetchone()[0] == 0:
-        database.execute('INSERT INTO method (id, name, description, type) VALUES ({}, "{}", "{}", {});'.format(method, "Unkonwn Partitioner", "Automatically inserted unknown partition method", method_type["partitioner"]))
-    for target in domains:
-        # check if target is present, or create it
-        if database.execute(
-                'SELECT EXISTS (SELECT * FROM target WHERE id = "{}" LIMIT 1);'.format(
-                 target)).fetchone()[0] == 0:
-            database.execute(
-                'INSERT INTO target (id, casp) VALUES ("{}", {});'.format(target, casp))
-        for (num, domain) in enumerate(domains[target]):
-            # check if domain is present, or create it
-            domain_id = database.execute(
-                'SELECT domain.id FROM component INNER JOIN domain ON (component.domain = domain.id) WHERE component.target = "{}" AND component.num = {} AND domain.method = {} LIMIT 1;'.format(
-                    target, num, method)).fetchone()
-            print(domain_id)
-            if domain_id is None:
-                # Insert new domain
-                database.execute(
-                    'INSERT INTO domain (method) VALUES ({});'.format(method))
-                # Get last inserted domains rowid (domain id)
-                domain_id = database.execute("SELECT last_insert_rowid();").fetchone()
-                # Create component connector
-                database.execute(
-                    'INSERT INTO component (target, num, domain) VALUES ("{}", {}, {});'.format(
-                        target, num, domain_id[0]))
-                print("Inserted domain {}".format(domain_id[0]))
-            domain_id = domain_id[0]
-            print("And again {}".format(domain_id))
-            for segment in domain:
-                # print(segment, type(segment))
-                database.execute('INSERT INTO segment (domain, start, stop) VALUES ({}, {}, {});'.format(domain_id, segment[0], segment[1]))
 
 
 def print_domains(domains):

@@ -148,7 +148,6 @@ def get_length(target, database, method=None):
     """
     query = 'SELECT len FROM target WHERE id="{}";'.format(target)
     target_length = database.execute(query).fetchone()[0]
-    ignore_residues = {}
 
     # Get first listed partitioner method stored in database, if not specified
     # by user

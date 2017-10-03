@@ -72,7 +72,7 @@ def create_result_database(db=":memory:"):
     CREATE TABLE model(id INTEGER PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text UNIQUE REFERENCES path(pathway), name text, UNIQUE(method, target, name));
     CREATE TABLE qa(id INTEGER PRIMARY KEY, model int REFERENCES model(id), component int REFERENCES component(id), method int REFERENCES method(id), UNIQUE (model, component, method));
     CREATE TABLE qascore(qa int REFERENCES qa(id) PRIMARY KEY, global real);
-    CREATE TABLE lscore(model int REFERENCES model(id), qa int REFERENCES qa(id), residue int, score real, PRIMARY KEY (model, qa, residue));
+    CREATE TABLE lscore(qa int REFERENCES qa(id), residue int, score real, PRIMARY KEY (qa, residue));
     CREATE TABLE qajoin(qa int REFERENCES qa(id), compound int REFERENCES qa(id), PRIMARY KEY (qa, compound));
     # Segment triggers;
     CREATE TRIGGER segment_length_insert AFTER INSERT ON segment FOR EACH ROW BEGIN UPDATE segment SET len = NEW.stop - NEW.start + 1 WHERE domain = NEW.domain AND start = NEW.start AND stop = NEW.stop; END;
@@ -109,7 +109,7 @@ def create_result_database(db=":memory:"):
     database.execute(
         "CREATE TABLE qascore(qa int REFERENCES qa(id) PRIMARY KEY, global real);")
     database.execute(
-        "CREATE TABLE lscore(model int REFERENCES model(id), qa int REFERENCES qa(id), residue int, score real, PRIMARY KEY (model, qa, residue));")
+        "CREATE TABLE lscore(qa int REFERENCES qa(id), residue int, score real, PRIMARY KEY (qa, residue));")
     database.execute(
         "CREATE TABLE qajoin(qa int REFERENCES qa(id), compound int REFERENCES qacompound(id), PRIMARY KEY (qa, compound));")
     # Segment triggers;
@@ -150,7 +150,7 @@ def store_qa(model, global_score, local_score, qa_method, database, component=No
     # Insert new or overwrite qascore entry
     query = 'INSERT OR REPLACE INTO qascore (qa, global) VALUES ({}, {:.3f})'.format(qa_id, global_score)
     database.execute(query)
-    store_local_score(model, qa_id, local_score, database)
+    store_local_score(qa_id, local_score, database)
     return qa_id
 
 
@@ -192,26 +192,25 @@ def store_qa_compounded(model, qas,  global_score, local_score, cmp_method, data
     return qa_cmp_id
 
 
-def store_local_score(model, qa, local_score, database):
+def store_local_score(qa, local_score, database):
     """Store a list of local scores in database
 
-    :param model: integer id of model evaluated
     :param qa: integer id of the quality assessment that the score pertains to
     :param local_score: list of floats with local scores, always starting with
                         score of first residue, even if not part of model scored
     :param database: database connection
     """
     # Create the table
-    query = "CREATE TABLE IF NOT EXISTS lscore(model int REFERENCES model(id), qa int REFERENCES qa(id), residue int, score real, PRIMARY KEY (model, qa, residue));"
+    query = "CREATE TABLE IF NOT EXISTS lscore(qa int REFERENCES qa(id), residue int, score real, PRIMARY KEY (qa, residue));"
     database.execute(query)
 
     # Store the data
-    query = 'INSERT OR REPLACE INTO lscore (model, qa, residue, score) VALUES (?, ?, ?, ?)'
+    query = 'INSERT OR REPLACE INTO lscore (qa, residue, score) VALUES (?, ?, ?)'
     # Expect local score to always start from 1st residue
     for (residue, score) in enumerate(local_score, start=1):
         # only store the existing assessments
         if score is not None:
-            database.execute(query, (model, qa, residue, score))
+            database.execute(query, (qa, residue, score))
 
 
 def store_servers(servers, database):
@@ -247,7 +246,6 @@ def store_caspservers(servers, casp, database):
     added = {}
     for server in servers:
         query = 'SELECT id FROM method WHERE name = ?;'
-        print(servers[server][0])
         method = database.execute(query, (servers[server][0],)).fetchone()
         if method is not None:
             method = method[0]
@@ -258,6 +256,52 @@ def store_caspservers(servers, casp, database):
             added[server] = servers[server][0]
 
     return added
+
+
+def store_domains(domains, database, method, casp=12):
+    # Check if CASP is present, or create it
+    if database.execute(
+            "SELECT EXISTS (SELECT * FROM casp WHERE id = {} LIMIT 1);".format(
+                casp)).fetchone()[0] == 0:
+        database.execute("INSERT INTO casp (id) VALUES ({});".format(casp))
+    # Create new method if not specified
+    if method is None:
+        database.execute('INSERT INTO method (name, description, type) VALUES ("{}", "{}", {});'.format("Unkonwn Partitioner", "Automatically inserted unknown partition method", method_type["partitioner"]))
+        method = database.execute("SELECT last_insert_rowid();").fetchone()[0]
+    # Or insert new if specified but does not exist
+    elif database.execute(
+            "SELECT EXISTS (SELECT * FROM method WHERE id = {} LIMIT 1);".format(
+                method)).fetchone()[0] == 0:
+        database.execute('INSERT INTO method (id, name, description, type) VALUES ({}, "{}", "{}", {});'.format(method, "Unkonwn Partitioner", "Automatically inserted unknown partition method", method_type["partitioner"]))
+    for target in domains:
+        # check if target is present, or create it
+        if database.execute(
+                'SELECT EXISTS (SELECT * FROM target WHERE id = "{}" LIMIT 1);'.format(
+                 target)).fetchone()[0] == 0:
+            database.execute(
+                'INSERT INTO target (id, casp) VALUES ("{}", {});'.format(target, casp))
+        for (num, domain) in enumerate(domains[target]):
+            # check if domain is present, or create it
+            domain_id = database.execute(
+                'SELECT domain.id FROM component INNER JOIN domain ON (component.domain = domain.id) WHERE component.target = "{}" AND component.num = {} AND domain.method = {} LIMIT 1;'.format(
+                    target, num, method)).fetchone()
+            print(domain_id)
+            if domain_id is None:
+                # Insert new domain
+                database.execute(
+                    'INSERT INTO domain (method) VALUES ({});'.format(method))
+                # Get last inserted domains rowid (domain id)
+                domain_id = database.execute("SELECT last_insert_rowid();").fetchone()
+                # Create component connector
+                database.execute(
+                    'INSERT INTO component (target, num, domain) VALUES ("{}", {}, {});'.format(
+                        target, num, domain_id[0]))
+                print("Inserted domain {}".format(domain_id[0]))
+            domain_id = domain_id[0]
+            print("And again {}".format(domain_id))
+            for segment in domain:
+                # print(segment, type(segment))
+                database.execute('INSERT INTO segment (domain, start, stop) VALUES ({}, {}, {});'.format(domain_id, segment[0], segment[1]))
 
 
 def store_models(target, servers, servermethods, database):
