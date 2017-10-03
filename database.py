@@ -4,12 +4,6 @@ from .interface.targets import identify_models_and_servers
 from .definitions import method_type
 
 
-
-
-def add_table_casp_server(database):
-    pass
-
-
 def create_database(db=":memory:"):
     # Create in-memory
     """Creates the database, in memory, to use for analyzing domain partitions
@@ -203,7 +197,8 @@ def store_local_score(model, qa, local_score, database):
 
     :param model: integer id of model evaluated
     :param qa: integer id of the quality assessment that the score pertains to
-    :param local_score: list of floats with local scores
+    :param local_score: list of floats with local scores, always starting with
+                        score of first residue, even if not part of model scored
     :param database: database connection
     """
     # Create the table
@@ -211,7 +206,8 @@ def store_local_score(model, qa, local_score, database):
     database.execute(query)
 
     # Store the data
-    query = 'INSERT OR REPLACE INTO lscore (model, qa, rediue, score) VALUES (?, ?, ?, ?)'
+    query = 'INSERT OR REPLACE INTO lscore (model, qa, residue, score) VALUES (?, ?, ?, ?)'
+    # Expect local score to always start from 1st residue
     for (residue, score) in enumerate(local_score, start=1):
         # only store the existing assessments
         if score is not None:
@@ -234,6 +230,15 @@ def store_servers(servers, database):
 
 
 def store_caspservers(servers, casp, database):
+    """Save parsed casp-servers in database, if method already present
+
+    :param servers: Dictionary with integer server CASP id as keys and tuples of
+                    server name string and type string as values
+    :param casp: integer with casp experiment ID
+    :param database: sqlite3 database connection
+    :return: dictionary with all added CASP server id integers as keys and
+             server name as values
+    """
     database.execute(
         "CREATE TABLE IF NOT EXISTS caspserver(id int, method int REFERENCES method(id), type text, PRIMARY KEY (id, method));")
     database.execute(
@@ -245,8 +250,6 @@ def store_caspservers(servers, casp, database):
         print(servers[server][0])
         method = database.execute(query, (servers[server][0],)).fetchone()
         if method is not None:
-            method = method[0]
-            method = method[0]
             method = method[0]
             query = 'INSERT OR REPLACE INTO caspserver (id, method, type) VALUES (?, ?, ?);'
             database.execute(query, (server, method, servers[server][1]))
@@ -304,6 +307,52 @@ def store_models_and_servers(target, results, database):
     model_id = store_models(target, servers, servermethods, database)
 
     return servers, modeltuples, filenames, servermethods, model_id
+
+
+def store_target_information(targets, casp, database, target_key="Target", length_key="Res", force=False):
+    """Store CASP target specifications in database
+
+    :param targets: csv.DictionaryReader with CASP target specifications
+    :param casp: integer CASP id
+    :param database: sqlite3 database connection
+    :param target_key: string text column identifier for target keys (specified
+                       in first line of csv)
+    :param length_key: dito but for the number of residues in target
+    :param force: Store new targets if not already present in database, default
+                  is to only update targets already found in database
+    :return: tuple with two dictionaries
+             1) all found target text identifiers as keys, found text string of
+                target length as values
+             2) all saved targets, text identifiers as keys and tuples of target
+                integer length, integer casp ID and text path (if present) as
+                values
+    """
+
+    found = {}
+    saved = {}
+    # Parse each entry found
+    for entry in targets:
+        target = entry[target_key]
+        length = entry[length_key]
+        # Check if entry is stored
+        query = 'SELECT id, len, casp, path FROM target WHERE id = "{}";'.format(target)
+        stored = database.execute(query).fetchone()
+        found[target] = length
+        # Save new length if found
+        if stored is not None:
+            length = int(length)
+            (stored_id, stored_len, stored_casp, stored_path) = stored
+            query = 'INSERT OR REPLACE INTO target (id, len, casp, path) VALUES (?, ?, ?, ?);'
+            database.execute(query, (target, length, casp, stored_path))
+            saved[target] = (length, casp, stored_path)
+        # Otherwise create new entry with indicated length, if forcing adding
+        elif force:
+            length = int(length)
+            query = 'INSERT INTO target (id, len, casp) VALUES (?, ?, ?);'
+            database.execute(query, (target, length, casp))
+            saved[target] = (length, casp, None)
+
+    return (found, saved)
 
 
 def get_or_add_method(method_name, method_desc, method_type_name, database):

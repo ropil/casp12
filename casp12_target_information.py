@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-from re import compile
 from urllib.request import urlopen
 from sqlite3 import connect
-from casp12.database import store_caspservers
-from casp12.interface.casp import parse_server_definitions
+from casp12.interface.casp import parse_target_information
+from casp12.database import store_target_information
 
 '''
- Read online CASP server definitions and store translation in database
+ Read online CASP target information and store it in database
  Copyright (C) 2017  Robert Pilstål
 
    This program is free software: you can redistribute it and/or modify
@@ -27,7 +26,7 @@ from casp12.interface.casp import parse_server_definitions
 # Version and license information
 def get_version_str():
     return "\n".join([
-        "casp12_read_server_translation  Copyright (C) 2017  Robert Pilstål;",
+        "casp12_target_information  Copyright (C) 2017  Robert Pilstål;",
         "This program comes with ABSOLUTELY NO WARRANTY.",
         "This is free software, and you are welcome to redistribute it",
         "under certain conditions; see supplied General Public License."
@@ -35,22 +34,20 @@ def get_version_str():
 
 
 # Library functions
-def find_servers(url):
-    """Opens url with urllib and passes it to server parser function
+def get_target_information(url):
+    """Opens url with urllib and passes it to target parser function
 
-    :param url: Text CASP server url to open
-    :return: Dictionary with CASP server id integers as keys and tuples of
-             server textual name and server textual type as values
+    :param url: Text CASP target csv url to open
+    :return: csv DictionaryReader class with target information
     """
-    servers = {}
 
     # Get and read the text from the webpage
-    with urlopen(url) as webpage:
-        server_listing = webpage.read()
+    response = urlopen(url)
+    target_information = response.read()
 
-    servers = parse_server_definitions(server_listing)
+    targets = parse_target_information(target_information.decode().split('\n'))
 
-    return servers
+    return targets
 
 
 # Main; for callable scripts
@@ -58,14 +55,17 @@ def main():
     from argparse import ArgumentParser
     from sys import argv, stdin
     parser = ArgumentParser(
-        description="Utility to identify CASP servers from online web.")
+        description="Utility to read CASP target information from online web.")
     parser.add_argument(
         "-casp", nargs=1, default=["12"], metavar="int",
         help="CASP experiment, default=12")
     parser.add_argument(
-        "-url", nargs=1, default=["http://predictioncenter.org/casp12/docs.cgi?view=groupsbyname"],
-        metavar="URL", help="CASP server listing, " +
-                            "default=http://predictioncenter.org/casp12/docs.cgi?view=groupsbyname")
+        "-force", action="store_true", default=False,
+        help="Force storing new targets, default=Only update present targets")
+    parser.add_argument(
+        "-url", nargs=1, default=["http://predictioncenter.org/casp12/targetlist.cgi?type=csv"],
+        metavar="URL", help="CASP target listing, " +
+                            "default=http://predictioncenter.org/casp12/targetlist.cgi?type=csv")
     parser.add_argument('-v', '--version', action='version', version=get_version_str())
     parser.add_argument(
         "database", nargs=1, metavar="file", help="Database within which to store results")
@@ -74,19 +74,21 @@ def main():
 
     # Set variables here
     casp = int(arguments.casp[0])
+    force = arguments.force
     url = arguments.url[0]
 
     # Get all new target urls
-    servers = find_servers(url)
+    dictreader = get_target_information(url)
 
     # Store servers and save database
     database = connect(database_file)
-    stored = store_caspservers(servers, casp, database)
+    (targets, stored) = store_target_information(dictreader, casp, database, force=force)
     database.commit()
     database.close()
 
-    for server in servers:
-        print("".join(["{:03d}\t: {}".format(int(server), servers[server][0]), " (stored)" if server in stored else ""]))
+    # Print found targets, indicating which was stored in database
+    for target in targets:
+        print("".join(["{}\t: {}".format(target, targets[target]), " (stored)" if target in stored else ""]))
 
 
 
