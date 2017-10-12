@@ -123,6 +123,32 @@ def create_result_database(db=":memory:"):
     return database
 
 
+def get_or_add_method(method_name, method_desc, method_type_name, database):
+    """Get or add a method following its name, description and type definition
+
+    :param method_name: str with name of method
+    :param method_desc: str with method description
+    :param method_type_name: str of method type name, see method_type dictionary
+    :param database: database connection
+    :return: integer method id
+    """
+    # Try to find the method id, if it exists
+
+    query = 'SELECT id FROM method WHERE name = "{}" AND description = "{}" AND type = {} LIMIT 1'.format(
+        method_name, method_desc, method_type[method_type_name])
+    print(query)
+    method = database.execute(query).fetchone()
+
+    # Otherwise insert a new method
+    if method is None:
+        query = 'INSERT INTO method (name, description, type) VALUES ("{}", "{}", {})'.format(
+            method_name, method_desc, method_type[method_type_name])
+        database.execute(query)
+        method = database.execute("SELECT last_insert_rowid();").fetchone()
+
+    return method[0]
+
+
 def store_qa(model, global_score, local_score, qa_method, database, component=None):
     """Store quality assessment scores, either full model or partitioned domain
 
@@ -304,6 +330,45 @@ def store_domains(domains, database, method, casp=12):
                 database.execute('INSERT INTO segment (domain, start, stop) VALUES ({}, {}, {});'.format(domain_id, segment[0], segment[1]))
 
 
+def store_or_get_model(target, method, model, database):
+    """ Store a new model or find model id for already stored model
+
+    :param target: text of CASP target ID
+    :param method: integer method ID
+    :param model: integer model serial, i.e. server submission serial
+    :param database: database connection
+    :return: integer stored model ID
+    """
+    query = 'INSERT INTO model (method, target, name) VALUES ({}, "{}", "{:02d}")'.format(
+        method, target, model)
+    try:
+        database.execute(query)
+        model_id = database.execute("SELECT last_insert_rowid();").fetchone()[0]
+    except IntegrityError:
+        query = 'SELECT id FROM model WHERE method = {} AND target = "{}" AND name = "{:02d}"'.format(
+            method, target, model)
+        model_id = database.execute(query).fetchone()[0]
+    return model_id
+
+
+def store_model_caspmethod(target, caspserver, model, database):
+    """Store model, using CASP server ID's
+
+    :param target: text of CASP target ID
+    :param caspserver: integer CASP server ID
+    :param model: integer server model serial
+    :param database: database connection
+    :return: integer model ID stored or found in database
+    """
+    # Get method of caspserver
+    query = "SELECT method FROM caspserver WHERE id = {};".format(caspserver)
+    method_id = database.query().fetchone()[0]
+    # Get model ID if present
+    model_id = store_or_get_model(target, method_id, model, database)
+
+    return model_id
+
+
 def store_models(target, servers, servermethods, database):
     """Store models in database
 
@@ -321,16 +386,19 @@ def store_models(target, servers, servermethods, database):
     for server in servers:
         # identify servermethod ID
         servermethod = servermethods[server]
+        # Find, or store new models
         for model in servers[server]:
-            # CREATE TABLE model(id INTEGER PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text REFERENCES path(pathway), name text);
-            query = 'INSERT INTO model (method, target, name) VALUES ({}, "{}", "{:02d}")'.format(servermethod, target, model)
-            try:
-                database.execute(query)
-                model_id[(server, model)] = \
-                database.execute("SELECT last_insert_rowid();").fetchone()[0]
-            except IntegrityError:
-                query = 'SELECT id FROM model WHERE method = {} AND target = "{}" AND name = "{:02d}"'.format(servermethod, target, model)
-                model_id[(server, model)] = database.execute(query).fetchone()[0]
+            model_id[(server, model)] = store_or_get_model(target, servermethod,
+                                                           model, database)
+            # # CREATE TABLE model(id INTEGER PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text REFERENCES path(pathway), name text);
+            # query = 'INSERT INTO model (method, target, name) VALUES ({}, "{}", "{:02d}")'.format(servermethod, target, model)
+            # try:
+            #     database.execute(query)
+            #     model_id[(server, model)] = \
+            #     database.execute("SELECT last_insert_rowid();").fetchone()[0]
+            # except IntegrityError:
+            #     query = 'SELECT id FROM model WHERE method = {} AND target = "{}" AND name = "{:02d}"'.format(servermethod, target, model)
+            #     model_id[(server, model)] = database.execute(query).fetchone()[0]
     return model_id
 
 
@@ -397,32 +465,6 @@ def store_target_information(targets, casp, database, target_key="Target", lengt
             saved[target] = (length, casp, None)
 
     return (found, saved)
-
-
-def get_or_add_method(method_name, method_desc, method_type_name, database):
-    """Get or add a method following its name, description and type definition
-
-    :param method_name: str with name of method
-    :param method_desc: str with method description
-    :param method_type_name: str of method type name, see method_type dictionary
-    :param database: database connection
-    :return: integer method id
-    """
-    # Try to find the method id, if it exists
-
-    query = 'SELECT id FROM method WHERE name = "{}" AND description = "{}" AND type = {} LIMIT 1'.format(
-        method_name, method_desc, method_type[method_type_name])
-    print(query)
-    method = database.execute(query).fetchone()
-
-    # Otherwise insert a new method
-    if method is None:
-        query = 'INSERT INTO method (name, description, type) VALUES ("{}", "{}", {})'.format(
-            method_name, method_desc, method_type[method_type_name])
-        database.execute(query)
-        method = database.execute("SELECT last_insert_rowid();").fetchone()
-
-    return method[0]
 
 
 def save_or_dump(database, datafile):

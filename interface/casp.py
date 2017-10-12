@@ -1,7 +1,7 @@
 from lxml.etree import HTML
 from csv import unix_dialect, DictReader, register_dialect
 from collections import OrderedDict
-from ..database import get_or_add_method, store_qa
+from ..database import get_or_add_method, store_qa, store_model_caspmethod
 from re import compile
 
 
@@ -54,6 +54,33 @@ def parse_target_information(webpage):
     return target_info
 
 
+def parse_lga_sda_summary(infile, summaryregex="^([^\.])\.lga:SUMMARY(GDT)\s+(.*)\Z"):
+    """Parse a CASP SDA summary file
+
+    :param infile: interable holding sommary file lines as strings
+    :param summaryregex: string of regex identifying summary lines, with models
+                         and summary entries as groups
+    :return: dictionary with string of CASP model identifier and float RMSD as
+             values
+    """
+    summaryentry = compile(summaryregex)
+
+    # Parse file
+    summary = {}
+    for line in infile:
+        # For summary lines
+        m = summaryentry.match(line)
+        if m:
+            # Storing model info
+            model = m.group(1)
+            (N1, N2, DIST, N, RMSD, GDT_TS, LGA_S3, LGA_Q) = m.group(2).split()
+            # And RMSD
+            summary[model] = float(RMSD)
+
+    return summary
+
+
+
 def parse_lga_sda(infile, lgaregex="^LGA", modelregex = "^# Molecule1:.* selected  (\d+) .* name (\S+)$", evidenceregex = "^# Molecule2:.* selected  (\d+) .* name (\S+)$"):
     """ Parse an LGA file in CASP style
 
@@ -104,23 +131,27 @@ def parse_lga_sda(infile, lgaregex="^LGA", modelregex = "^# Molecule1:.* selecte
 
     return distances, model, evidence, selection
 
-#X        MET     3       No      No      -       -
-def parse_lga_lddt(infile, lddtregex="^.\s+(\S+)\s+(\d+)\s+(\S+)\s(\S+)\s*\Z", modelregex = "^File: (\S+)"):
+
+def parse_lga_lddt(infile, lddtregex="^.\s+(\S+)\s+(\d+)\s+(\S+)\s(\S+)\s*\Z", modelregex = "^File: (\S+)", globalregex="^Global LDDT score: (\d+\.\d+)"):
     """Parse a LDDT file
 
     :param infile: interable with strings of LDDT file to parse
     :param lddtregex: string with regex finding LDDT score lines
     :param modelregex: string with regex identifying model file
+    :param globalregex: string with regex identifying global score
     :return: tuple with
-             1) OrderedDict containing integer of residue number as keys and
+             1) float of LDDT global score
+             2) OrderedDict containing integer of residue number as keys and
                 float of transformed distance (score) as value
-             2) string with Model file name
+             3) string with Model file name
     """
     lddtentry = compile(lddtregex)
     modelentry = compile(modelregex)
+    globalentry = compile(globalregex)
 
     scores = OrderedDict()
     model = None
+    globalscore = None
     for line in infile:
         m = lddtentry.match(line)
         if lddtentry:
@@ -134,29 +165,64 @@ def parse_lga_lddt(infile, lddtregex="^.\s+(\S+)\s+(\d+)\s+(\S+)\s(\S+)\s*\Z", m
             m  = modelentry.match(line)
             if m:
                 model = m.group(1).split('/')[-1]
+            else:
+                m = globalentry.match(line)
+                if m:
+                    globalscore = float(m.group(1))
 
-    return scores, model
+    return globalscore, scores, model
 
 
-def store_lga_sda(model, global_score, distances, qa_method, database, component=None):
-    length = max(distances.keys())
+def pad_scores(scores):
+    """Create a list of scores, padded from the first residue with Nones where
+    residues are missing
+
+    :param scores: OrderedDict with integer residue ID's as keys and float
+                   scores as values
+    :return: list of floats with scores
+    """
+    # Check maximal residue number
+    length = max(scores.keys())
 
     # Create a enumerate list from 1, with Nones for missing data, so that it is
     # compatible with database.store_local_score
-    local_score = []
+    padded_list = []
     for i in range(1, length + 1):
-        if i in distances:
-            local_score.append(distances[i])
+        if i in scores:
+            padded_list.append(scores[i])
         else:
-            local_score.append(None)
+            padded_list.append(None)
 
-    method_id = get_or_add_method(qa_method, "CASP lga_sda,\nadded by store_lga_sda", "qa", database)
+    return padded_list
+
+
+def store_casp_qa(target, caspserver, model, global_score, scores, qa_method, database, component=None):
+    """ Save local scores from CASP-server, converting casp-server to method ID
+    and padding score/distance list
+
+    :param target: text CASP target
+    :param caspserver: integer CASP server ID
+    :param model: integer server model serial
+    :param global_score: float global score
+    :param scores: OrderedDict with integer residue serials as keys and float
+                   scores as values
+    :param qa_method: integer qa method ID
+    :param database: database connection
+    :param component: integer domain ID (None is default)
+    :return: integer ID of stored QA
+    """
+    # Create a enumerate list from 1, with Nones for missing data, so that it is
+    # compatible with database.store_local_score
+    local_score = pad_scores(scores)
 
     # Get the model ID using the conversion getting method, model should be modelname containing
     # Target, server and model identifiers that are parseable.
+    model_id = store_model_caspmethod(target, caspserver, model, database)
 
-    qa_id = store_qa(model, global_score, local_score, method_id, database,
+    qa_id = store_qa(model_id, global_score, local_score, qa_method, database,
              component=component)
+
+    return qa_id
 
 
 
