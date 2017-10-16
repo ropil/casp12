@@ -2,6 +2,7 @@ from lxml.etree import HTML
 from csv import unix_dialect, DictReader, register_dialect
 from collections import OrderedDict
 from ..database import get_or_add_method, store_qa, store_model_caspmethod
+from .pcons import d2S
 from re import compile
 
 
@@ -196,7 +197,53 @@ def pad_scores(scores):
     return padded_list
 
 
-def store_casp_qa(target, caspserver, model, global_score, scores, qa_method, database, component=None):
+def process_casp_sda(infile, globalscores, qa_method, database, target=None, caspserver=None, model=None, component=None, modelregex='^(T\d+)S(\d+)_(\d+)', d0=None):
+    """Process a local LGA_SDA distance file and store as CASP local QA
+
+    :param infile: LGA_SDA score file to parse
+    :param globalscores: dictionary with text modelstrings as keys and float
+                         global scores as values
+    :param qa_method: integer QA method ID
+    :param database: sqlite3 database connection
+    :param target: text CASP target identifier, if None - parsed from
+                   modelstring
+    :param caspserver: integer CASP server identifier, if None - parse from
+                       modelstring
+    :param model: integer CASP server model id, if None - parsed from
+                  modelstring
+    :param component: integer domain ID
+    :param modelregex: text modelstring parser regex
+    :param d0: float d0 distance to score conversion constant, if None - do not
+               convert; store distances
+    :return: integer ID of stored QA
+    """
+    # Parse local distances
+    (distances, modelstring, evidence, selection) = parse_lga_sda(infile)
+
+    # Parse modelstring
+    modelre = compile(modelregex)
+    m = modelre.match(modelstring)
+    # Let specified values have precedence over parsed
+    if m:
+        if target is None:
+            target = m.group(1)
+        if caspserver is None:
+            caspserver = int(m.group(2))
+        if model is None:
+            model = int(m.group(3))
+
+    # Create a enumerate list from 1, with Nones for missing data, so that it is
+    # compatible with database.store_local_score
+    local_dist = pad_scores(distances)
+    # convert local scores
+    local_score = local_dist
+    if d0 is not None:
+        local_score = d2S(local_dist, d0=d0)
+    # Store local and global scores
+    return store_casp_qa(target, caspserver, model, globalscores[modelstring], local_score, qa_method, database, component=component)
+
+
+def store_casp_qa(target, caspserver, model, global_score, local_score, qa_method, database, component=None):
     """ Save local scores from CASP-server, converting casp-server to method ID
     and padding score/distance list
 
@@ -204,16 +251,17 @@ def store_casp_qa(target, caspserver, model, global_score, scores, qa_method, da
     :param caspserver: integer CASP server ID
     :param model: integer server model serial
     :param global_score: float global score
-    :param scores: OrderedDict with integer residue serials as keys and float
-                   scores as values
+    :param local_score: list of floats of local scores with None where residue
+                        scores is missing. Starts from models 1st residue, and
+                        ands on the last residue with score not equal to None
     :param qa_method: integer qa method ID
     :param database: database connection
     :param component: integer domain ID (None is default)
     :return: integer ID of stored QA
     """
-    # Create a enumerate list from 1, with Nones for missing data, so that it is
-    # compatible with database.store_local_score
-    local_score = pad_scores(scores)
+    # # Create a enumerate list from 1, with Nones for missing data, so that it is
+    # # compatible with database.store_local_score
+    # local_score = pad_scores(scores)
 
     # Get the model ID using the conversion getting method, model should be modelname containing
     # Target, server and model identifiers that are parseable.
