@@ -197,7 +197,7 @@ def pad_scores(scores):
     return padded_list
 
 
-def process_casp_sda(infile, globalscores, qa_method, database, target=None, caspserver=None, model=None, component=None, modelregex='^(T\d+)S(\d+)_(\d+)', d0=None):
+def process_casp_sda(infile, globalscores, qa_method, database, target=None, caspserver=None, model=None, component=None, modelregex='^(T\d+)TS(\d+)_(\d+)', d0=None):
     """Process a local LGA_SDA distance file and store as CASP local QA
 
     :param infile: LGA_SDA score file to parse
@@ -241,6 +241,31 @@ def process_casp_sda(infile, globalscores, qa_method, database, target=None, cas
         local_score = d2S(local_dist, d0=d0)
     # Store local and global scores
     return store_casp_qa(target, caspserver, model, globalscores[modelstring], local_score, qa_method, database, component=component)
+
+
+def process_casp_lddt(infile, qa_method, database, modelregex='^(T\d+)TS(\d+)_(\d+)', component=None):
+    """Process a local CASP LGA LDDT file and store in QA database
+
+    :param infile: iterable with lines of a CASP LGA LDDT file
+    :param qa_method: integer ID of QA method used
+    :param database: sqlite3 database connection
+    :param modelregex: text with regex for parsing CASP model strings
+    :param component: integer domain ID, if domain specific QA
+    :return: integer ID of resulting QA stored in database
+    """
+    # Parse file
+    (globalscore, scores, model) = parse_lga_lddt(infile)
+    # Create a enumerate list from 1, with Nones for missing data, so that it is
+    # compatible with database.store_local_score
+    local_score = pad_scores(scores)
+    # Parse the model string
+    m_model = compile(modelregex)
+    m = m_model.search(model)
+    target = m.group(1)
+    caspserver = int(m.group(2))
+    model = int(m.group(3))
+    # Store QA, return the QA ID
+    return store_casp_qa(target, caspserver, model, globalscore, local_score, qa_method, database, component=component)
 
 
 def store_casp_qa(target, caspserver, model, global_score, local_score, qa_method, database, component=None):

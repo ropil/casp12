@@ -3,12 +3,12 @@ from re import compile
 from sqlite3 import connect
 from casp12.database import get_or_add_method, save_or_dump
 from casp12.interface.filesystem import find_all_files
-from casp12.interface.casp import parse_lga_sda_summary, process_casp_sda
+from casp12.interface.casp import process_casp_lddt
 from casp12.definitions import method_type
 
 
 '''
- Parse all downloaded CASP12 LGA_SDA QA-files
+ Parse all downloaded CASP12 LGA_LDDT QA-files
  Copyright (C) 2017  Robert Pilstål
 
    This program is free software: you can redistribute it and/or modify
@@ -29,7 +29,7 @@ from casp12.definitions import method_type
 # Version and license information
 def get_version_str():
     return "\n".join([
-        "casp12_parse_lga_sda  Copyright (C) 2017  Robert Pilstål;",
+        "casp12_parse_lga_lddt  Copyright (C) 2017  Robert Pilstål;",
         "This program comes with ABSOLUTELY NO WARRANTY.",
         "This is free software, and you are welcome to redistribute it",
         "under certain conditions; see supplied General Public License."
@@ -50,7 +50,7 @@ def main():
     from argparse import ArgumentParser
     from sys import argv, stdin
     parser = ArgumentParser(
-        description="Parse all CASP_LGA_SDA-files found")
+        description="Parse all CASP_LGA_LDDT-files found")
     parser.add_argument(
         "-casp", nargs=1, default=["12"], metavar="int",
         help="CASP integer experiment ID, default=12")
@@ -65,23 +65,19 @@ def main():
 
     # Set variables here
     files = find_all_files(arguments.directory)
-    m_summary_full = compile("(T.\d+)\.SUMMARY\.lga_sda\.txt")
-    m_summary_domain = compile("(T.\d+)-D(\d+)\.SUMMARY\.lga_sda\.txt")
-    m_model = compile("(T.\d+)TS(\d+)_(\d+)\.lga")
-    m_model_domain = compile("(T.\d+)TS(\d+)_(\d+)-D(\d+)\.lga")
+    m_model = compile("(T.\d+)TS(\d+)_(\d+)\.lddt")
+    m_model_domain = compile("(T.\d+)TS(\d+)_(\d+)-D(\d+)\.lddt")
     casp = int(arguments.casp[0])
     databasefile = arguments.database[0]
     database = connect(databasefile)
 
-    qa_method_name = "CASP{}_LGA_SDA".format(casp)
-    qa_method_desc = "CASP{} LGA_SDA measure added by casp12_parse_lga_sda.py".format(casp)
+    qa_method_name = "CASP{}_LGA_LDDT".format(casp)
+    qa_method_desc = "CASP{} LGA_LDDT measure added by casp12_parse_lga_lddt.py".format(casp)
     qa_method_type = method_type("qa")
 
     qa_method = get_or_add_method(qa_method_name, qa_method_desc, qa_method_type, database)
 
     # Identify files
-    summaries = {}
-    domainsummaries = {}
     models = {}
     domainmodels = {}
     for f in files:
@@ -92,27 +88,12 @@ def main():
         m = m_model_domain.search(f)
         if m:
             add_file(f, m, domainmodels)
-            continue
-        m = m_summary_full.search(f)
-        if m:
-            add_file(f, m, summaries)
-            continue
-        m = m_summary_domain.search(f)
-        if m:
-            add_file(f, m, domainsummaries)
-            continue
-
-    # Read summaries to get global scores
-    globalscores = {}
-    for target in summaries:
-        with open(summaries[target][0], 'r') as infile:
-            globalscores[target] = parse_lga_sda_summary(infile)
 
     # Parse all local score tables
     for target in models:
         for modelfile in models[target]:
             with open(modelfile, 'r') as infile:
-                qa = process_casp_sda(infile, globalscores, qa_method, database)
+                qa = process_casp_lddt(infile, qa_method, database)
 
     # Save database
     save_or_dump(database, databasefile)
