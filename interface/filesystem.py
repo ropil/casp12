@@ -47,7 +47,7 @@ def identify_tarballs(targets, tar_regexes=["^.*\.tgz", "^.*\.tar\.gz"]):
     :return: list of recognized tarball paths
     """
     tarballs = []
-    regexes = [compile[regex] for regex in tar_regexes]
+    regexes = [compile(regex) for regex in tar_regexes]
     for target in targets:
         for filename in targets[target]:
             for regex in regexes:

@@ -90,7 +90,7 @@ def download_new_targets(url, destination, targetregex="^(T.\d+)[-.]"):
                 if targetname not in targets_downloaded:
                     targets_downloaded[targetname] = {}
                 # Save target -> filename -> path
-                targets_downloaded[targetname][targeturl] = downloaded(targeturl)
+                targets_downloaded[targetname][targeturl] = downloaded[targeturl]
 
     # Download all new files
     new_downloaded = download_targets(to_download, destination)
