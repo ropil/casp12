@@ -1,5 +1,6 @@
 from lxml.etree import HTML
 from os.path import join
+from re import compile
 from urllib.request import urlopen, urlretrieve
 from urllib.parse import urljoin
 from .filesystem import find_targets_downloaded
@@ -57,6 +58,9 @@ def download_new_targets(url, destination, targetregex="^(T.\d+)[-.]"):
              1) text target ID as keys, dictionaries as values
              2) text filesnames as keys, text pathnames as values
     """
+    # Fix url so that urljoin won't fail
+    if url[-1] != '/':
+        url += '/'
     # List files already downloaded
     downloaded = find_targets_downloaded(destination)
     # Read page

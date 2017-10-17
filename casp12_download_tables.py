@@ -49,9 +49,9 @@ def main():
     arguments = parser.parse_args(argv[1:])
 
     # Set variables here
-    destination = arguments.destination
+    destination = arguments.destination[0]
     regex = arguments.regex[0]
-    url = arguments.url
+    url = arguments.url[0]
 
     # Download and unpack
     targets = download_new_targets(url, destination, targetregex=regex)
