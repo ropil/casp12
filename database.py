@@ -360,11 +360,14 @@ def store_model_caspmethod(target, caspserver, model, database):
     :param database: database connection
     :return: integer model ID stored or found in database
     """
-    # Get method of caspserver
-    query = "SELECT method FROM caspserver WHERE id = {};".format(caspserver)
-    method_id = database.query().fetchone()[0]
-    # Get model ID if present
-    model_id = store_or_get_model(target, method_id, model, database)
+    try:
+        # Get method of caspserver
+        query = "SELECT method FROM caspserver WHERE id = {};".format(caspserver)
+        method_id = database.execute(query).fetchone()[0]
+        # Get model ID if present
+        model_id = store_or_get_model(target, method_id, model, database)
+    except TypeError:
+        return None
 
     return model_id
 

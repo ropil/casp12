@@ -6,6 +6,10 @@ from .pcons import d2S
 from re import compile
 
 
+class LGA_SDAError(Exception):
+    pass
+
+
 class casp_dialect(unix_dialect):
     """Change delimiter to ;"""
     delimiter = ';'
@@ -55,7 +59,7 @@ def parse_target_information(webpage):
     return target_info
 
 
-def parse_lga_sda_summary(infile, summaryregex="^([^\.])\.lga:SUMMARY(GDT)\s+(.*)\Z"):
+def parse_lga_sda_summary(infile, summaryregex="^([^\.]+)\.lga:SUMMARY\(GDT\)\s+(.*)"):
     """Parse a CASP SDA summary file
 
     :param infile: interable holding sommary file lines as strings
@@ -82,7 +86,7 @@ def parse_lga_sda_summary(infile, summaryregex="^([^\.])\.lga:SUMMARY(GDT)\s+(.*
 
 
 
-def parse_lga_sda(infile, lgaregex="^LGA", modelregex = "^# Molecule1:.* selected  (\d+) .* name (\S+)$", evidenceregex = "^# Molecule2:.* selected  (\d+) .* name (\S+)$"):
+def parse_lga_sda(infile, lgaregex="^LGA\s+", modelregex = "^# Molecule1:.* selected\s+(\d+) .* name\s+(\S+)", evidenceregex = "^# Molecule2:.* selected\s+(\d+) .* name\s+(\S+)", errorregex="^# ERROR!"):
     """ Parse an LGA file in CASP style
 
     :param infile: iterable with lines of LGA-file
@@ -95,17 +99,18 @@ def parse_lga_sda(infile, lgaregex="^LGA", modelregex = "^# Molecule1:.* selecte
                 float of RMSD (distance) as value
              2) String with name of model file
              3) String with name of gold standard file
-             4) tuple with integer length of selection evaluated, first element
-                is model, second is gold standard
+             4) list with two integers with length of selection evaluated, first
+                element is model, second is gold standard
     """
     lgaentry = compile(lgaregex)
     evidence_entry = compile(evidenceregex)
     model_entry = compile(modelregex)
+    error_entry = compile(errorregex)
 
     distances = OrderedDict()
     model = None
     evidence = None
-    selection = (None, None)
+    selection = [None, None]
 
     for line in infile:
         # Parse LGA entry if found
@@ -127,8 +132,9 @@ def parse_lga_sda(infile, lgaregex="^LGA", modelregex = "^# Molecule1:.* selecte
                 m = model_entry.match(line)
                 if m:
                     model = m.group(2)
-                    selection[0] = int(m.group[0])
-
+                    selection[0] = int(m.group(1))
+                elif error_entry.match(line):
+                    raise LGA_SDAError("ERROR: {}".format(infile.name))
 
     return distances, model, evidence, selection
 
@@ -197,7 +203,7 @@ def pad_scores(scores):
     return padded_list
 
 
-def process_casp_sda(infile, globalscores, qa_method, database, target=None, caspserver=None, model=None, component=None, modelregex='^(T\d+)TS(\d+)_(\d+)', d0=None):
+def process_casp_sda(infile, globalscores, qa_method, database, target=None, caspserver=None, model=None, component=None, modelregex='^(T.\d+)TS(\d+)_(\d+)', d0=None):
     """Process a local LGA_SDA distance file and store as CASP local QA
 
     :param infile: LGA_SDA score file to parse
@@ -240,7 +246,7 @@ def process_casp_sda(infile, globalscores, qa_method, database, target=None, cas
     if d0 is not None:
         local_score = d2S(local_dist, d0=d0)
     # Store local and global scores
-    return store_casp_qa(target, caspserver, model, globalscores[modelstring], local_score, qa_method, database, component=component)
+    return store_casp_qa(target, caspserver, model, globalscores[target][modelstring], local_score, qa_method, database, component=component)
 
 
 def process_casp_lddt(infile, qa_method, database, modelregex='^(T\d+)TS(\d+)_(\d+)', component=None):
@@ -270,7 +276,8 @@ def process_casp_lddt(infile, qa_method, database, modelregex='^(T\d+)TS(\d+)_(\
 
 def store_casp_qa(target, caspserver, model, global_score, local_score, qa_method, database, component=None):
     """ Save local scores from CASP-server, converting casp-server to method ID
-    and padding score/distance list
+    and padding score/distance list. Will not store QA if method or target is
+    missig in database (return None)
 
     :param target: text CASP target
     :param caspserver: integer CASP server ID
@@ -291,6 +298,10 @@ def store_casp_qa(target, caspserver, model, global_score, local_score, qa_metho
     # Get the model ID using the conversion getting method, model should be modelname containing
     # Target, server and model identifiers that are parseable.
     model_id = store_model_caspmethod(target, caspserver, model, database)
+
+    # Do not store QA if the method is unknown
+    if model_id is None:
+        return None
 
     qa_id = store_qa(model_id, global_score, local_score, qa_method, database,
              component=component)

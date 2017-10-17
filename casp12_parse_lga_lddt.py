@@ -4,7 +4,6 @@ from sqlite3 import connect
 from casp12.database import get_or_add_method, save_or_dump
 from casp12.interface.filesystem import find_all_files
 from casp12.interface.casp import process_casp_lddt
-from casp12.definitions import method_type
 
 
 '''
@@ -64,7 +63,7 @@ def main():
     arguments = parser.parse_args(argv[1:])
 
     # Set variables here
-    files = find_all_files(arguments.directory)
+    files = find_all_files(arguments.directory[0])
     m_model = compile("(T.\d+)TS(\d+)_(\d+)\.lddt")
     m_model_domain = compile("(T.\d+)TS(\d+)_(\d+)-D(\d+)\.lddt")
     casp = int(arguments.casp[0])
@@ -73,7 +72,7 @@ def main():
 
     qa_method_name = "CASP{}_LGA_LDDT".format(casp)
     qa_method_desc = "CASP{} LGA_LDDT measure added by casp12_parse_lga_lddt.py".format(casp)
-    qa_method_type = method_type("qa")
+    qa_method_type = "qa"
 
     qa_method = get_or_add_method(qa_method_name, qa_method_desc, qa_method_type, database)
 

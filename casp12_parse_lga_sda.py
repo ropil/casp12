@@ -4,7 +4,6 @@ from sqlite3 import connect
 from casp12.database import get_or_add_method, save_or_dump
 from casp12.interface.filesystem import find_all_files
 from casp12.interface.casp import parse_lga_sda_summary, process_casp_sda
-from casp12.definitions import method_type
 
 
 '''
@@ -64,18 +63,18 @@ def main():
     arguments = parser.parse_args(argv[1:])
 
     # Set variables here
-    files = find_all_files(arguments.directory)
-    m_summary_full = compile("(T.\d+)\.SUMMARY\.lga_sda\.txt")
-    m_summary_domain = compile("(T.\d+)-D(\d+)\.SUMMARY\.lga_sda\.txt")
-    m_model = compile("(T.\d+)TS(\d+)_(\d+)\.lga")
-    m_model_domain = compile("(T.\d+)TS(\d+)_(\d+)-D(\d+)\.lga")
+    files = find_all_files(arguments.directory[0])
+    m_summary_full = compile("(T.\d+)\.SUMMARY\.lga_sda\.txt\Z")
+    m_summary_domain = compile("(T.\d+)-D(\d+)\.SUMMARY\.lga_sda\.txt\Z")
+    m_model = compile("(T.\d+)TS(\d+)_(\d+)\.lga\Z")
+    m_model_domain = compile("(T.\d+)TS(\d+)_(\d+)-D(\d+)\.lga\Z")
     casp = int(arguments.casp[0])
     databasefile = arguments.database[0]
     database = connect(databasefile)
 
     qa_method_name = "CASP{}_LGA_SDA".format(casp)
     qa_method_desc = "CASP{} LGA_SDA measure added by casp12_parse_lga_sda.py".format(casp)
-    qa_method_type = method_type("qa")
+    qa_method_type = "qa"
 
     qa_method = get_or_add_method(qa_method_name, qa_method_desc, qa_method_type, database)
 
