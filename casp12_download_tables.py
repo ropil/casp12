@@ -56,7 +56,7 @@ def main():
     # Download and unpack
     targets = download_new_targets(url, destination, targetregex=regex)
     tarballs = identify_tarballs(targets)
-    unpack_tarballs(tarballs)
+    unpack_tarballs(tarballs, destination)
 
 
 if __name__ == '__main__':

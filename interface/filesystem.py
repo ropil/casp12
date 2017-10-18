@@ -58,12 +58,14 @@ def identify_tarballs(targets, tar_regexes=["^.*\.tgz", "^.*\.tar\.gz"]):
 
 
 
-def unpack_tarballs(files):
+def unpack_tarballs(files, destination):
     """ Unpacks a number of files using tar xzf
 
     :param files: iterable with strings of tarball filenames
+    :param destination: string path to destination directory, where to unpack
     """
     unpack_cmd = ["tar", "xzf"]
+    unpack_suffix = ["-C", destination]
     for ball in files:
-        cmd = unpack_cmd + [ball]
+        cmd = unpack_cmd + [ball] + unpack_suffix
         run(cmd)
