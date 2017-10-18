@@ -9,6 +9,9 @@ from re import compile
 class LGA_SDAError(Exception):
     pass
 
+class LGA_LDDTError(Exception):
+    pass
+
 
 class casp_dialect(unix_dialect):
     """Change delimiter to ;"""
@@ -139,7 +142,7 @@ def parse_lga_sda(infile, lgaregex="^LGA\s+", modelregex = "^# Molecule1:.* sele
     return distances, model, evidence, selection
 
 
-def parse_lga_lddt(infile, lddtregex="^.\s+(\S+)\s+(\d+)\s+(\S+)\s(\S+)\s*\Z", modelregex = "^File: (\S+)", globalregex="^Global LDDT score: (\d+\.\d+)"):
+def parse_lga_lddt(infile, lddtregex="^.\s+(\S+)\s+(\d+)\s+(\S+)\s(\S+)\s+(\S+)\s+(\S+)\s*\Z", modelregex = "^File: (\S+)", globalregex="^Global LDDT score: (\d+\.\d+)"):
     """Parse a LDDT file
 
     :param infile: interable with strings of LDDT file to parse
@@ -161,12 +164,12 @@ def parse_lga_lddt(infile, lddtregex="^.\s+(\S+)\s+(\d+)\s+(\S+)\s(\S+)\s*\Z", m
     globalscore = None
     for line in infile:
         m = lddtentry.match(line)
-        if lddtentry:
-            residue = int(m.group(3))
+        if m:
+            residue = int(m.group(2))
             try:
-                score = float(m.group(6))
+                score = float(m.group(5))
                 scores[residue] = score
-            except:
+            except ValueError:
                 pass
         else:
             m  = modelentry.match(line)
@@ -249,7 +252,7 @@ def process_casp_sda(infile, globalscores, qa_method, database, target=None, cas
     return store_casp_qa(target, caspserver, model, globalscores[target][modelstring], local_score, qa_method, database, component=component)
 
 
-def process_casp_lddt(infile, qa_method, database, modelregex='^(T\d+)TS(\d+)_(\d+)', component=None):
+def process_casp_lddt(infile, qa_method, database, modelregex='^(T.\d+)TS(\d+)_(\d+)', component=None):
     """Process a local CASP LGA LDDT file and store in QA database
 
     :param infile: iterable with lines of a CASP LGA LDDT file
@@ -263,6 +266,8 @@ def process_casp_lddt(infile, qa_method, database, modelregex='^(T\d+)TS(\d+)_(\
     (globalscore, scores, model) = parse_lga_lddt(infile)
     # Create a enumerate list from 1, with Nones for missing data, so that it is
     # compatible with database.store_local_score
+    if len(scores) == 0:
+        raise LGA_LDDTError("ERROR: No LGA entries found in '{}'".format(infile.name))
     local_score = pad_scores(scores)
     # Parse the model string
     m_model = compile(modelregex)

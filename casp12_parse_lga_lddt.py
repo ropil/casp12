@@ -64,8 +64,8 @@ def main():
 
     # Set variables here
     files = find_all_files(arguments.directory[0])
-    m_model = compile("(T.\d+)TS(\d+)_(\d+)\.lddt")
-    m_model_domain = compile("(T.\d+)TS(\d+)_(\d+)-D(\d+)\.lddt")
+    m_model = compile("(T.\d+)TS(\d+)_(\d+)\.lddt\Z")
+    m_model_domain = compile("(T.\d+)TS(\d+)_(\d+)-D(\d+)\.lddt\Z")
     casp = int(arguments.casp[0])
     databasefile = arguments.database[0]
     database = connect(databasefile)
