@@ -4,6 +4,7 @@ import numpy
 import pandas
 import seaborn as sns
 import matplotlib.pyplot as plt
+# from casp12.interface.pcons import d2S
 
 
 '''
@@ -36,6 +37,29 @@ def get_version_str():
 
 
 # Library functions
+def d2S(dataframe, method, d0):
+    dataframe[method] = dataframe[method].apply(lambda x: 1.0 / (1.0 + (x / d0)**2))
+    return dataframe
+
+
+def convert_data(correlates, methods):
+    # Format data into pandas frame
+    return pandas.DataFrame([entry[1:] for entry in correlates],
+                            columns=[method[1] for method in methods])
+
+
+def convert_column(data, methods, method_id, d0):
+    # Find column
+    column = None
+    for (num, method) in enumerate(methods):
+        if method == method_id:
+            column = num
+    # Convert column
+    data = [entry[:column] + [d2S([entry[column]], d0)] + entry[column + 1:-1] for entry in data]
+    return data
+
+
+
 def get_correlates(database):
     query = "select id, name from method where type = 2 or type = 3;"
     methods = database.execute(query).fetchall()
@@ -84,12 +108,8 @@ def plot_correlates(correlates, methods):
     # seaborn setting
     sns.set(style="white")
 
-    # Format data into pandas frame
-    data = pandas.DataFrame([entry[1:] for entry in correlates],
-                            columns=[method[1] for method in methods])
-
     # Get correlation matrix via pandas
-    corrmatrix = data.corr()
+    corrmatrix = correlates.corr()
 
     # Generate a mask for the upper triangle
     mask = numpy.zeros_like(corrmatrix, dtype=numpy.bool)
@@ -116,8 +136,8 @@ def main():
     parser.add_argument(
         "-a", action="store_true", default=False, help="Prints nothing")
     parser.add_argument(
-        "-t", nargs=1, default=["nothing"], metavar="TEXT",
-        help="What to print")
+        "-d0", nargs=1, default=["3.0"], metavar="FLOAT",
+        help="TMscore cutoff, default=3.0")
     parser.add_argument('-v', '--version', action='version',
                         version=get_version_str())
     parser.add_argument(
@@ -130,9 +150,20 @@ def main():
     # Set variables here
     database = sqlite3.connect(databasefile)
     outfile = arguments.plot[0]
+    d0 = float(arguments.d0[0])
 
     # Select correlates from database
     (correlates, methods) = get_correlates(database)
+
+    # Convert to pandas table
+    correlates = convert_data(correlates, methods)
+
+    # Convert SDA
+    to_convert = None
+    for method in methods:
+        if method[1] == "CASP12_LGA_SDA":
+            to_convert = method[0]
+    correlates = d2S(correlates, "CASP12_LGA_SDA", d0)
 
     # Plot the correlations
     (f, matrix) = plot_correlates(correlates, methods)
