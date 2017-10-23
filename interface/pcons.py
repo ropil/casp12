@@ -276,7 +276,7 @@ def write_local_scores(scores):
     return " ".join(["X" if x is None else "{:.3f}".format(x) for x in scores])
 
 
-def write_scorefile(outfile, global_score, local_score, d0=3):
+def write_scorefile(outfile, global_score, local_score, d0=3, target="T0XXX"):
     """Print a PCONS score file given local and global score dictionaries
 
     :param outfile: Writeable filehandle to write output into
@@ -298,7 +298,7 @@ def write_scorefile(outfile, global_score, local_score, d0=3):
 
     # Header
     outfile.write("PFRMAT QA\n")
-    outfile.write("TARGET T0XXX\n")
+    outfile.write("TARGET {}\n".format(target))
     outfile.write("AUTHOR XXXXXXXXXX\n")
     outfile.write("MODEL 1\n")
     outfile.write("QMODE 2\n")
@@ -306,7 +306,7 @@ def write_scorefile(outfile, global_score, local_score, d0=3):
     # Score section
     for (model, score) in (global_score_sorted):
         # Global score
-        outfile.write("%s %.3f" % (model, S2d([score], d0=d0)[0]))
+        outfile.write("%s %.3f " % (model, S2d([score], d0=d0)[0]))
         # Local scores
         outfile.write(write_local_scores(S2d(local_score[model], d0=d0)))
         # for value in S2d(local_score[model], d0=d0):
