@@ -59,8 +59,8 @@ def main():
         "-targets", nargs=1, default=[None], metavar="str",
         help="Target selection [target1,target2,target3,etc.], default=None")
     parser.add_argument(
-        "-transform", action="store_false", default=True,
-        help="Disable transform of distances (expect scores)")
+        "-transform", action="store_true", default=False,
+        help="Transform of distances (default=expect scores)")
     parser.add_argument(
         "-write", action="store_true", default=False,
         help="Write out pcons text-files")
@@ -131,7 +131,7 @@ def main():
         if write:
             scorefile = get_scorefile_name(targetdir, method=method, partitioned=False)
             with open(scorefile, 'w') as outfile:
-                write_scorefile(outfile, pcons_results[0], pcons_results[1], d0=d0)
+                write_scorefile(outfile, pcons_results[0], pcons_results[1], d0=d0, transform=transform)
 
     # commit and close database
     save_or_dump(database, sqlite_file)

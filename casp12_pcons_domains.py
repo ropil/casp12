@@ -63,8 +63,8 @@ def main():
         "-targets", nargs=1, default=[None], metavar="str",
         help="Target selection [target1,target2,target3,etc.], default=None")
     parser.add_argument(
-        "-transform", action="store_false", default=True,
-        help="Disable transform of distances (expect scores)")
+        "-transform", action="store_true", default=False,
+        help="Transform distances (default=expect scores)")
     parser.add_argument('-v', '--version', action='version',
                         version=get_version_str())
     parser.add_argument(
@@ -172,7 +172,7 @@ def main():
                                            partitioned=True)
             with open(scorefile, 'w') as outfile:
                 write_scorefile(outfile, joint_quality[0], joint_quality[1],
-                                d0=d0)
+                                d0=d0, transform=transform)
 
     # Commit database
     save_or_dump(database, sqlite_file)
