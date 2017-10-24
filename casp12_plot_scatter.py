@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 import sqlite3
 import seaborn as sns
-import matplotlib.pyplot as plt
-from casp12.plots import convert_data, d2S, get_correlates, plot_correlates
+from casp12.plots import convert_data, d2S, get_correlates
 
 
 '''
@@ -40,8 +39,10 @@ def plot_scatter(correlates):
     #sns.set(style="ticks")
     #f = sns.pairplot(correlates, hue="species")
     #f = sns.pairplot(correlates, kind="reg", diag_kind="kde", plot_kws=dict(s=50, edgecolor="b", linewidth=1), diag_kws=dict(s=50, edgecolor="b", linewidth=1, shade=True))
+    #f = sns.pairplot(correlates, kind="reg", diag_kind="kde",
+    #                 diag_kws=dict(shade=True), x_vars=["CASP12_LGA_SDA", "CASP12_LGA_LDDT"], y_vars=["vanilla", "Simple Arithmetic on partitioner 1", "Simple Arithmetic on partitioner 2", "Simple Arithmetic on partitioner 3"])
     f = sns.pairplot(correlates, kind="reg", diag_kind="kde",
-                     diag_kws=dict(shade=True), x_vars=["CASP12_LGA_SDA", "CASP12_LGA_LDDT"], y_vars=["vanilla", "Simple Arithmetic on partitioner 1", "Simple Arithmetic on partitioner 2", "Simple Arithmetic on partitioner 3"])
+                     diag_kws=dict(shade=True))
     return f
 
 

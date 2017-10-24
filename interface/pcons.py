@@ -155,7 +155,7 @@ def read_local_scores(scores):
     return [None if x == "X" else float(x) for x in scores]
 
 
-def read_pcons(output, transform_distance=True, d0=3, regex="^\S+_TS\d+"):
+def read_pcons(output, transform_distance=False, d0=3, regex="^\S+_TS\d+"):
     """Reads PCONS output
 
     :param output: File handle or iterable of strings (one string per row)
@@ -276,7 +276,7 @@ def write_local_scores(scores):
     return " ".join(["X" if x is None else "{:.3f}".format(x) for x in scores])
 
 
-def write_scorefile(outfile, global_score, local_score, d0=3, target="T0XXX"):
+def write_scorefile(outfile, global_score, local_score, d0=3, target="T0XXX", transform=False):
     """Print a PCONS score file given local and global score dictionaries
 
     :param outfile: Writeable filehandle to write output into
@@ -305,10 +305,15 @@ def write_scorefile(outfile, global_score, local_score, d0=3, target="T0XXX"):
 
     # Score section
     for (model, score) in (global_score_sorted):
+        lscore = local_score[model]
+        # Transform to distances if required
+        if transform:
+            score = S2d([score], d0=d0)[0]
+            lscore = S2d(lscore, d0=d0)
         # Global score
-        outfile.write("%s %.3f " % (model, S2d([score], d0=d0)[0]))
+        outfile.write("%s %.3f " % (model, score))
         # Local scores
-        outfile.write(write_local_scores(S2d(local_score[model], d0=d0)))
+        outfile.write(write_local_scores(lscore))
         # for value in S2d(local_score[model], d0=d0):
         #     if value is None:
         #         outfile.write(" X")
