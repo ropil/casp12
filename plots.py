@@ -34,48 +34,111 @@ def d2S(dataframe, method, d0):
     return dataframe
 
 
-def get_correlates(database):
+def get_models(database, target=None):
+    query = "select id from model;"
+    # Select only pertaining to a target if specified
+    if target is not None:
+        query = 'SELECT id FROM model WHERE target = "{}";'.format(target)
+    return [entry[0] for entry in database.execute(query).fetchall()]
+
+
+def get_correlates(database, target=None):
+    """ Get QA local scores correlates from database
+
+    :param database: sqlite3 database connection
+    :param target: Stirng with target identifier. if specified, only get
+                   correlates pertaining to target
+    :return: A tuple with
+             1) list of tuples with residue number as first element and local
+                scores from all QA's found
+             2) list of tuples with method id's and names as elements
+    """
     query = "select id, name from method where type = 2 or type = 3;"
     methods = database.execute(query).fetchall()
 
-    query = "select id from model;"
-    models = [entry[0] for entry in database.execute(query).fetchall()]
+    models = get_models(database, target=target)
+
+    # query = "select id from model;"
+    # # Select only pertaining to a target if specified
+    # if target is not None:
+    #     query = 'SELECT id FROM model WHERE target = "{}";'.format(target)
+    # models = [entry[0] for entry in database.execute(query).fetchall()]
 
     qa_query = "SELECT id FROM qa WHERE model = {} AND method = {} AND component IS NULL"
     score_query = "SELECT residue, score FROM lscore WHERE qa = {}"
 
     correlates = []
     for model in models:
-        selects = []
-        froms = []
-        ons = []
-        previous = None
-        skip = False
-        # print("MODEL: {}".format(model))
-        for (num, (method_id, method_name)) in enumerate(methods):
-            tablename = "t{}".format(num)
-            qa = database.execute(qa_query.format(model, method_id)).fetchone()
-            if qa is not None:
-                # print("TABLE NUM: {}, METHOD ID: {}".format(num, method_id))
-                qa = qa[0]
-                if previous is None:
-                    selects.append("{}.residue".format(tablename))
-                selects.append("{}.score".format(tablename))
-                froms.append("({}) AS {}".format(score_query.format(qa), tablename))
-                if previous is not None:
-                    ons.append("{}.residue = {}.residue".format(previous, tablename))
-                previous = tablename
-            else:
-                # print("SKIPPING")
-                skip = True
-                break
-        if skip:
-            continue
-        current_query = "SELECT {} FROM {} ON {};".format(", ".join(selects), ", ".join(froms), " AND ".join(ons))
-        # print(current_query)
-        correlates += database.execute(current_query).fetchall()
+        #     selects = []
+        #     froms = []
+        #     ons = []
+        #     previous = None
+        #     skip = False
+        #     # print("MODEL: {}".format(model))
+        #     for (num, (method_id, method_name)) in enumerate(methods):
+        #         tablename = "t{}".format(num)
+        #         qa = database.execute(qa_query.format(model, method_id)).fetchone()
+        #         if qa is not None:
+        #             # print("TABLE NUM: {}, METHOD ID: {}".format(num, method_id))
+        #             qa = qa[0]
+        #             if previous is None:
+        #                 selects.append("{}.residue".format(tablename))
+        #             selects.append("{}.score".format(tablename))
+        #             froms.append("({}) AS {}".format(score_query.format(qa), tablename))
+        #             if previous is not None:
+        #                 ons.append("{}.residue = {}.residue".format(previous, tablename))
+        #             previous = tablename
+        #         else:
+        #             # print("SKIPPING")
+        #             skip = True
+        #             break
+        #     if skip:
+        #         continue
+        #     current_query = "SELECT {} FROM {} ON {};".format(", ".join(selects), ", ".join(froms), " AND ".join(ons))
+        #     # print(current_query)
+        #     correlates += database.execute(current_query).fetchall()
+        new_correlates = get_model_correlates(database, model, methods)
+        if new_correlates is not None:
+            correlates += new_correlates
 
     return correlates, methods
+
+
+def get_model_correlates(database, model, methods):
+    qa_query = "SELECT id FROM qa WHERE model = {} AND method = {} AND component IS NULL"
+    score_query = "SELECT residue, score FROM lscore WHERE qa = {}"
+
+    selects = []
+    froms = []
+    ons = []
+    previous = None
+    skip = False
+    # print("MODEL: {}".format(model))
+    for (num, (method_id, method_name)) in enumerate(methods):
+        tablename = "t{}".format(num)
+        qa = database.execute(qa_query.format(model, method_id)).fetchone()
+        if qa is not None:
+            # print("TABLE NUM: {}, METHOD ID: {}".format(num, method_id))
+            qa = qa[0]
+            if previous is None:
+                selects.append("{}.residue".format(tablename))
+            selects.append("{}.score".format(tablename))
+            froms.append("({}) AS {}".format(score_query.format(qa), tablename))
+            if previous is not None:
+                ons.append(
+                    "{}.residue = {}.residue".format(previous, tablename))
+            previous = tablename
+        else:
+            # print("SKIPPING")
+            skip = True
+            break
+    if skip:
+        return None
+    current_query = "SELECT {} FROM {} ON {};".format(", ".join(selects),
+                                                      ", ".join(froms),
+                                                      " AND ".join(ons))
+    # print(current_query)
+    return database.execute(current_query).fetchall()
 
 
 def plot_correlates(correlates, methods):
