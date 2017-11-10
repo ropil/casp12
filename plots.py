@@ -56,6 +56,8 @@ def get_correlates(database, target=None):
     query = "select id, name from method where type = 2 or type = 3;"
     methods = database.execute(query).fetchall()
 
+    # Here we should remove methods that we are not interested in
+
     models = get_models(database, target=target)
 
     # query = "select id from model;"

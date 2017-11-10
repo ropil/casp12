@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 from re import compile
 from sqlite3 import connect
-from casp12.database import get_caspserver_method, get_caspserver_name, update_caspserver_method, get_or_add_method, save_or_dump
+from casp12.database import get_caspserver_method, get_caspserver_name, get_method_type, update_caspserver_method, get_or_add_method, save_or_dump
 from casp12.interface.filesystem import find_all_files
 from casp12.interface.casp import get_filename_info, process_casp_qa, QAError
+from casp12.definitions import method_type
 
 
 '''
@@ -82,8 +83,14 @@ def main():
     # Parse all local score tables
     for target in models:
         for modelfile in models[target]:
-            (target, method_type, server, model_name) = get_filename_info(modelfile)
+            (target, casp_method_type, server, model_name) = get_filename_info(modelfile)
             qa_method = get_caspserver_method(database, server)
+            # This ugly hack will relink the CASP server to point to a QA method.
+            # It will be removed when the database is properly rewritten.
+            if qa_method is not None:
+                qa_method_type_id = get_method_type(database, qa_method)
+                if qa_method_type_id != method_type[qa_method_type]:
+                    qa_method = None
             if qa_method is None:
                 # Add method
                 server_name = get_caspserver_name(database, server)

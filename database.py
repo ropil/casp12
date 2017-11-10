@@ -139,6 +139,14 @@ def get_caspserver_method(database, server):
     return result[0]
 
 
+def get_method_type(database, method):
+    query = 'SELECT type FROM method WHERE id = {}'.format(method)
+    result = database.execute(query).fetchone()
+    if result is None:
+        raise IndexError
+    return result[0]
+
+
 def update_caspserver_method(database, server, method):
     query = 'UPDATE caspserver SET method = {} WHERE id = {}'.format(method, server)
     return database.execute(query)
