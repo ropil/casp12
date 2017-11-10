@@ -60,6 +60,10 @@ def main():
     parser = ArgumentParser(
         description="Utility to identify CASP servers from online web.")
     parser.add_argument(
+        "-all", action="store_true", default=False,
+        help="Store all servers, default=only those that translate to method"
+    )
+    parser.add_argument(
         "-casp", nargs=1, default=["12"], metavar="int",
         help="CASP experiment, default=12")
     parser.add_argument(
@@ -73,6 +77,7 @@ def main():
     database_file = arguments.database[0]
 
     # Set variables here
+    all = arguments.all
     casp = int(arguments.casp[0])
     url = arguments.url[0]
 
@@ -81,14 +86,12 @@ def main():
 
     # Store servers and save database
     database = connect(database_file)
-    stored = store_caspservers(servers, casp, database)
+    stored = store_caspservers(servers, casp, database, all=all)
     database.commit()
     database.close()
 
     for server in servers:
         print("".join(["{:03d}\t: {}".format(int(server), servers[server][0]), " (stored)" if server in stored else ""]))
-
-
 
 
 if __name__ == '__main__':

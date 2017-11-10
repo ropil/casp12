@@ -123,6 +123,27 @@ def create_result_database(db=":memory:"):
     return database
 
 
+def get_caspserver_name(database, server):
+    query = 'SELECT name FROM caspserver WHERE id = {}'.format(server)
+    result = database.execute(query).fetchone()
+    if result is None:
+        raise IndexError
+    return result[0]
+
+
+def get_caspserver_method(database, server):
+    query = 'SELECT method FROM caspserver WHERE id = {}'.format(server)
+    result = database.execute(query).fetchone()
+    if result is None:
+        raise IndexError
+    return result[0]
+
+
+def update_caspserver_method(database, server, method):
+    query = 'UPDATE caspserver SET method = {} WHERE id = {}'.format(method, server)
+    return database.execute(query)
+
+
 def get_or_add_method(method_name, method_desc, method_type_name, database):
     """Get or add a method following its name, description and type definition
 
@@ -254,7 +275,7 @@ def store_servers(servers, database):
     return server_methods
 
 
-def store_caspservers(servers, casp, database):
+def store_caspservers(servers, casp, database, all=False):
     """Save parsed casp-servers in database, if method already present
 
     :param servers: Dictionary with integer server CASP id as keys and tuples of
@@ -265,18 +286,21 @@ def store_caspservers(servers, casp, database):
              server name as values
     """
     database.execute(
-        "CREATE TABLE IF NOT EXISTS caspserver(id int, method int REFERENCES method(id), type text, PRIMARY KEY (id, method));")
+        "CREATE TABLE IF NOT EXISTS caspserver(id int, method int REFERENCES method(id), name text, type text, PRIMARY KEY (id, method));")
     database.execute(
         "CREATE TABLE IF NOT EXISTS competesin(caspserver int REFERENCES caspserver(id), casp int REFERENCES casp(id), PRIMARY KEY (caspserver, casp));")
 
     added = {}
     for server in servers:
         query = 'SELECT id FROM method WHERE name = ?;'
-        method = database.execute(query, (servers[server][0],)).fetchone()
+        servername = servers[server][0]
+        servertype = servers[server][1]
+        method = database.execute(query, (servername,)).fetchone()
         if method is not None:
             method = method[0]
-            query = 'INSERT OR REPLACE INTO caspserver (id, method, type) VALUES (?, ?, ?);'
-            database.execute(query, (server, method, servers[server][1]))
+        if all or method is not None:
+            query = 'INSERT OR REPLACE INTO caspserver (id, method, name, type) VALUES (?, ?, ?, ?);'
+            database.execute(query, (server, method, servername, servertype))
             query = 'INSERT OR REPLACE INTO competesin (caspserver, casp) VALUES (?, ?)'
             database.execute(query, (server, casp))
             added[server] = servers[server][0]

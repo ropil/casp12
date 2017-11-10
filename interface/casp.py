@@ -2,7 +2,7 @@ from lxml.etree import HTML
 from csv import unix_dialect, DictReader, register_dialect
 from collections import OrderedDict
 from ..database import get_or_add_method, store_qa, store_model_caspmethod
-from .pcons import d2S
+from .pcons import d2S, read_pcons
 from re import compile
 
 
@@ -12,11 +12,33 @@ class LGA_SDAError(Exception):
 class LGA_LDDTError(Exception):
     pass
 
+class QAError(Exception):
+    pass
+
 
 class casp_dialect(unix_dialect):
     """Change delimiter to ;"""
     delimiter = ';'
 register_dialect("casp", casp_dialect)
+
+
+def get_filename_info(filename):
+    """ Parses information out of a CASP result filename
+
+    :param filename: string with filename
+    :return: tuple of
+             1. string of target name
+             2. string of method type
+             3. integer casp method ID
+             4. integer model serial
+    """
+    filename_regex = compile("(T.\d+)(\D\D)(\d+)_(\d+)")
+    info = filename_regex.search(filename)
+    target = info.group(1)
+    method_type = info.group(2)
+    method = int(info.group(3))
+    model_name = int(info.group(4))
+    return target, method_type, method, model_name
 
 
 def parse_server_definitions(page):
@@ -277,6 +299,38 @@ def process_casp_lddt(infile, qa_method, database, modelregex='^(T.\d+)TS(\d+)_(
     model = int(m.group(3))
     # Store QA, return the QA ID
     return store_casp_qa(target, caspserver, model, globalscore, local_score, qa_method, database, component=component)
+
+
+def process_casp_qa(infile, qa_method, database, modelregex='^(T.\d+)TS(\d+)_(\d+)', component=None):
+    """Process a CASP QA file and store in QA database
+
+    :param infile: iterable with lines of a CASP QA file
+    :param qa_method: integer ID of QA method used
+    :param database: sqlite3 database connection
+    :param modelregex: text with regex for parsing CASP model strings
+    :param component: integer domain ID, if domain specific QA
+    :return: list of integer IDs of resulting QAs stored in database
+    """
+    # Parse file
+    (global_scores, local_scores) = read_pcons(infile, regex=modelregex)
+    # Create a enumerate list from 1, with Nones for missing data, so that it is
+    # compatible with database.store_local_score
+    if len(local_scores) == 0:
+        raise QAError("ERROR: No QA score entries found in '{}'".format(infile.name))
+
+    # Parse the model string
+    m_model = compile(modelregex)
+    new_qa_id = []
+    for modelstring in global_scores:
+        m = m_model.search(modelstring)
+        target = m.group(1)
+        caspserver = int(m.group(2))
+        model = int(m.group(3))
+        local_score = local_scores[modelstring]
+        globalscore = global_scores[modelstring]
+        # Store QA, return the QA ID
+        new_qa_id.append(store_casp_qa(target, caspserver, model, globalscore, local_score, qa_method, database, component=component))
+    return new_qa_id
 
 
 def store_casp_qa(target, caspserver, model, global_score, local_score, qa_method, database, component=None):
