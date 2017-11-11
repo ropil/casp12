@@ -2,6 +2,7 @@
 import sqlite3
 import seaborn as sns
 from casp12.plots import convert_data, d2S, get_correlates
+from casp12.database import get_method_id_and_name_from_type
 
 
 '''
@@ -71,17 +72,22 @@ def main():
     outfile = arguments.plot[0]
     d0 = float(arguments.d0[0])
 
+    # Get methods
+    (method_ids, method_names) = get_method_id_and_name_from_type(database,
+                                                                  ["qa",
+                                                                   "compounder"])
+
     # Select correlates from database
-    (correlates, methods) = get_correlates(database)
+    correlates = get_correlates(database, method_ids)
 
     # Convert to pandas table
-    correlates = convert_data(correlates, methods)
+    correlates = convert_data(correlates, method_names)
 
     # Convert SDA
-    to_convert = None
-    for method in methods:
-        if method[1] == "CASP12_LGA_SDA":
-            to_convert = method[0]
+    # to_convert = None
+    # for method in methods:
+    #     if method[1] == "CASP12_LGA_SDA":
+    #         to_convert = method[0]
     correlates = d2S(correlates, "CASP12_LGA_SDA", d0)
 
     # Plot the correlations

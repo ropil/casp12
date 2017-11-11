@@ -124,7 +124,7 @@ def create_result_database(db=":memory:"):
 
 
 def get_caspserver_name(database, server):
-    query = 'SELECT name FROM caspserver WHERE id = {}'.format(server)
+    query = 'SELECT name FROM caspserver WHERE id = {};'.format(server)
     result = database.execute(query).fetchone()
     if result is None:
         raise IndexError
@@ -132,23 +132,58 @@ def get_caspserver_name(database, server):
 
 
 def get_caspserver_method(database, server):
-    query = 'SELECT method FROM caspserver WHERE id = {}'.format(server)
+    query = 'SELECT method FROM caspserver WHERE id = {};'.format(server)
     result = database.execute(query).fetchone()
     if result is None:
         raise IndexError
     return result[0]
 
+
+def get_method_id_from_type(database, methodtype):
+    """ Get method ID's for all methods of a specified type
+
+    :param database: sqlite3 connection
+    :param methodtype: integer of method type
+    :return: list of method ID integers
+    """
+    query = 'SELECT id FROM method WHERE type = {};'.format(methodtype)
+    result = database.execute(query).fetchall()
+    if result is None:
+        raise IndexError
+    return [entry[0] for entry in result]
 
 def get_method_type(database, method):
-    query = 'SELECT type FROM method WHERE id = {}'.format(method)
+    query = 'SELECT type FROM method WHERE id = {};'.format(method)
     result = database.execute(query).fetchone()
     if result is None:
         raise IndexError
     return result[0]
+
+
+def get_method_name(database, method):
+    query = 'SELECT name FROM method WHERE id = {};'.format(method)
+    result = database.execute(query).fetchone()
+    if result is None:
+        raise IndexError
+    return result[0]
+
+
+def get_method_id_and_name_from_type(database, methodtypes):
+    """ Get lists of method id and name of a selection of method types
+
+    :param database: sqlite3 connection
+    :param methodtypes: list of string method type names
+    :return: tuple of lists with method ID integers and method name strings
+    """
+    method_ids = []
+    for methodtype in methodtypes:
+        method_ids += get_method_id_from_type(database, method_type[methodtype])
+    method_names = [get_method_name(database, method_id) for method_id in method_ids]
+    return method_ids, method_names
 
 
 def update_caspserver_method(database, server, method):
-    query = 'UPDATE caspserver SET method = {} WHERE id = {}'.format(method, server)
+    query = 'UPDATE caspserver SET method = {} WHERE id = {};'.format(method, server)
     return database.execute(query)
 
 
