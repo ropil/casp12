@@ -182,6 +182,14 @@ def get_method_id_and_name_from_type(database, methodtypes):
     return method_ids, method_names
 
 
+def get_model_id_from_method_target_name(database, method, target, name):
+    query = 'select id from model WHERE method = {} AND target = "{}" AND name = "{:02d}"'.format(method, target, name)
+    result = database.execute(query).fetchone()
+    if result is None:
+        raise IndexError
+    return result[0]
+
+
 def update_caspserver_method(database, server, method):
     query = 'UPDATE caspserver SET method = {} WHERE id = {};'.format(method, server)
     return database.execute(query)
@@ -211,6 +219,38 @@ def get_or_add_method(method_name, method_desc, method_type_name, database):
         method = database.execute("SELECT last_insert_rowid();").fetchone()
 
     return method[0]
+
+    # select t1.model, t1.score, t2.score from
+    # (select qa.model as model, qascore.global as score from qa inner join qascore on qa.id = qascore.qa where qa.method = 51) as t1,
+    # (select qa.model as model, qascore.global as score from qa inner join qascore on qa.id = qascore.qa where qa.method = 52) as t2
+    # on t1.model = t2.model;
+def query_global_correlates(methods):
+    """Format query for global correlates over QA model intersection
+
+    :param methods: iterable of model integer ID's to intersect
+    :return: string of sqlite3 query
+    """
+    from_query = "SELECT qa.model AS model, qascore.global AS score FROM qa INNER JOIN qascore ON qa.id = qascore.qa WHERE qa.method = {} AND qa.component IS NULL"
+
+    selects = []
+    froms = []
+    ons = []
+    previous = None
+
+    for (num, method_id) in enumerate(methods):
+        tablename = "t{}".format(num)
+        froms.append("({}) AS {}".format(from_query.format(method_id), tablename))
+        if previous is not None:
+            ons.append(
+                    "{}.model = {}.model".format(previous, tablename))
+        else:
+            selects.append("{}.model".format(tablename))
+        selects.append("{}.score".format(tablename))
+        previous = tablename
+
+    return "SELECT {} FROM {} ON {};".format(", ".join(selects),
+                                             ", ".join(froms),
+                                             " AND ".join(ons))
 
 
 def store_qa(model, global_score, local_score, qa_method, database, component=None):

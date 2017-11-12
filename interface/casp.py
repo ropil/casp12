@@ -84,6 +84,8 @@ def parse_target_information(webpage):
     return target_info
 
 
+    # NAME                            N1   N2   DIST      N    RMSD    GDT_TS    LGA_S3     LGA_Q
+    # T0899TS001_1-D1.lga:SUMMARY(GDT)  259  259    4.0     29    2.83    13.031    10.371     0.990
 def parse_lga_sda_summary(infile, summaryregex="^([^\.]+)\.lga:SUMMARY\(GDT\)\s+(.*)"):
     """Parse a CASP SDA summary file
 
@@ -108,6 +110,18 @@ def parse_lga_sda_summary(infile, summaryregex="^([^\.]+)\.lga:SUMMARY\(GDT\)\s+
             summary[model] = float(RMSD)
 
     return summary
+
+
+def parse_global_summary(infile):
+    """Read target information specified in CASP csv file
+
+    :param webpage: iterable of strings, expecting first row to contain column
+                    keys
+    :return: cvs.DictReader object
+    """
+    global_scores = DictReader(infile, dialect='excel-tab')
+
+    return global_scores
 
 
 
