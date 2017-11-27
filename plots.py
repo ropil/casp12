@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 import numpy
-import pandas
 import seaborn as sns
 import matplotlib.pyplot as plt
+from .database import get_model_correlates as database_get_model_correlates
+from .database import get_correlates as database_get_correlates
+from .database import get_models as database_get_models
+from internal.calculations import d2S as calc_d2S
+from internal.data import remove_residue_column
+from interface.pandas import get_dataframe
 
 
 '''
@@ -25,92 +30,42 @@ import matplotlib.pyplot as plt
 
 def convert_data(correlates, method_names):
     # Format data into pandas frame
-    return pandas.DataFrame([entry[1:] for entry in correlates],
-                            columns=method_names)
+    """Legacy stateful function; uses interface/pandas.py and internal/data.py
+
+    :param correlates: iterable of iterables with correlation data, including
+                       first residue column
+    :param method_names: list of method names, used for columns
+    :return: Pandas Dataframe
+    """
+    return get_dataframe(remove_residue_column(correlates), method_names)
 
 
 def d2S(dataframe, method, d0):
-    dataframe[method] = dataframe[method].apply(lambda x: 1.0 / (1.0 + (x / d0)**2))
-    return dataframe
+    """Legacy interface, moved to internal/data.py
+
+    """
+    return calc_d2S(dataframe, method, d0)
 
 
 def get_models(database, target=None):
-    query = "select id from model;"
-    # Select only pertaining to a target if specified
-    if target is not None:
-        query = 'SELECT id FROM model WHERE target = "{}";'.format(target)
-    return [entry[0] for entry in database.execute(query).fetchall()]
+    """Legacy interface, moved to database.py
+
+    """
+    return database_get_models(database, target=target)
 
 
 def get_correlates(database, methods, target=None):
-    """ Get QA local scorecorrelates for a target over a set of methods
+    """Legacy interface, moved to database.py
 
-    :param database: sqlite3 database connection
-    :param methods: list with integer method ID's
-    :param target: Stirng with target identifier. if specified, only get
-                   correlates pertaining to target
-    :return: list of tuples with residue number as first element and local
-                scores from all QA's found
     """
-    # query = "select id, name from method where type = 2 or type = 3;"
-    # methods = database.execute(query).fetchall()
-
-    models = get_models(database, target=target)
-
-    qa_query = "SELECT id FROM qa WHERE model = {} AND method = {} AND component IS NULL"
-    score_query = "SELECT residue, score FROM lscore WHERE qa = {}"
-
-    correlates = []
-    for model in models:
-        new_correlates = get_model_correlates(database, model, methods)
-        if new_correlates is not None:
-            correlates += new_correlates
-
-    return correlates
+    return database_get_correlates(database, methods, target=target)
 
 
-def get_model_correlates(database, model, methods):
-    """ Get correlates for a model, over specified methods
+def get_model_correlats(database, model, methods):
+    """Legacy interface, moved to database.py
 
-    :param database: sqlite3 connection
-    :param model: integer model ID
-    :param methods: list of integer method IDs
-    :return: list of tuples with float correlates
     """
-    qa_query = "SELECT id FROM qa WHERE model = {} AND method = {} AND component IS NULL"
-    score_query = "SELECT residue, score FROM lscore WHERE qa = {}"
-
-    selects = []
-    froms = []
-    ons = []
-    previous = None
-    skip = False
-    # print("MODEL: {}".format(model))
-    for (num, method_id) in enumerate(methods):
-        tablename = "t{}".format(num)
-        qa = database.execute(qa_query.format(model, method_id)).fetchone()
-        if qa is not None:
-            # print("TABLE NUM: {}, METHOD ID: {}".format(num, method_id))
-            qa = qa[0]
-            if previous is None:
-                selects.append("{}.residue".format(tablename))
-            selects.append("{}.score".format(tablename))
-            froms.append("({}) AS {}".format(score_query.format(qa), tablename))
-            if previous is not None:
-                ons.append(
-                    "{}.residue = {}.residue".format(previous, tablename))
-            previous = tablename
-        else:
-            # print("SKIPPING")
-            skip = True
-            break
-    if skip:
-        return None
-    current_query = "SELECT {} FROM {} ON {};".format(", ".join(selects),
-                                                      ", ".join(froms),
-                                                      " AND ".join(ons))
-    # print(current_query)
-    return database.execute(current_query).fetchall()
+    return database_get_model_correlates(database, model, methods)
 
 
 def plot_correlates(correlates):

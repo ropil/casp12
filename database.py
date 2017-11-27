@@ -139,6 +139,75 @@ def get_caspserver_method(database, server):
     return result[0]
 
 
+def get_correlates(database, methods, target=None):
+    """ Get QA local scorecorrelates for a target over a set of methods
+
+    :param database: sqlite3 database connection
+    :param methods: list with integer method ID's
+    :param target: Stirng with target identifier. if specified, only get
+                   correlates pertaining to target
+    :return: list of tuples with residue number as first element and local
+                scores from all QA's found
+    """
+    # query = "select id, name from method where type = 2 or type = 3;"
+    # methods = database.execute(query).fetchall()
+
+    models = get_models(database, target=target)
+
+    qa_query = "SELECT id FROM qa WHERE model = {} AND method = {} AND component IS NULL"
+    score_query = "SELECT residue, score FROM lscore WHERE qa = {}"
+
+    correlates = []
+    for model in models:
+        new_correlates = get_model_correlates(database, model, methods)
+        if new_correlates is not None:
+            correlates += new_correlates
+
+
+def get_model_correlates(database, model, methods):
+    """ Get correlates for a model, over specified methods
+
+    :param database: sqlite3 connection
+    :param model: integer model ID
+    :param methods: list of integer method IDs
+    :return: list of tuples with float correlates
+    """
+    qa_query = "SELECT id FROM qa WHERE model = {} AND method = {} AND component IS NULL"
+    score_query = "SELECT residue, score FROM lscore WHERE qa = {}"
+
+    selects = []
+    froms = []
+    ons = []
+    previous = None
+    skip = False
+    # print("MODEL: {}".format(model))
+    for (num, method_id) in enumerate(methods):
+        tablename = "t{}".format(num)
+        qa = database.execute(qa_query.format(model, method_id)).fetchone()
+        if qa is not None:
+            # print("TABLE NUM: {}, METHOD ID: {}".format(num, method_id))
+            qa = qa[0]
+            if previous is None:
+                selects.append("{}.residue".format(tablename))
+            selects.append("{}.score".format(tablename))
+            froms.append("({}) AS {}".format(score_query.format(qa), tablename))
+            if previous is not None:
+                ons.append(
+                    "{}.residue = {}.residue".format(previous, tablename))
+            previous = tablename
+        else:
+            # print("SKIPPING")
+            skip = True
+            break
+    if skip:
+        return None
+    current_query = "SELECT {} FROM {} ON {};".format(", ".join(selects),
+                                                      ", ".join(froms),
+                                                      " AND ".join(ons))
+    # print(current_query)
+    return database.execute(current_query).fetchall()
+
+
 def get_method_id_from_type(database, methodtype):
     """ Get method ID's for all methods of a specified type
 
@@ -180,6 +249,14 @@ def get_method_id_and_name_from_type(database, methodtypes):
         method_ids += get_method_id_from_type(database, method_type[methodtype])
     method_names = [get_method_name(database, method_id) for method_id in method_ids]
     return method_ids, method_names
+
+
+def get_models(database, target=None):
+    query = "select id from model;"
+    # Select only pertaining to a target if specified
+    if target is not None:
+        query = 'SELECT id FROM model WHERE target = "{}";'.format(target)
+    return [entry[0] for entry in database.execute(query).fetchall()]
 
 
 def get_model_id_from_method_target_name(database, method, target, name):
