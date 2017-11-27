@@ -5,9 +5,8 @@ import matplotlib.pyplot as plt
 from .database import get_model_correlates as database_get_model_correlates
 from .database import get_correlates as database_get_correlates
 from .database import get_models as database_get_models
-from internal.calculations import d2S as calc_d2S
 from internal.data import remove_residue_column
-from interface.pandas import get_dataframe
+from interface.pandas import get_dataframe, score_column
 
 
 '''
@@ -41,10 +40,11 @@ def convert_data(correlates, method_names):
 
 
 def d2S(dataframe, method, d0):
-    """Legacy interface, moved to internal/data.py
+    """Legacy interface, moved to interface/pandas.py and
+       internal/calculations.py
 
     """
-    return calc_d2S(dataframe, method, d0)
+    return score_column(dataframe, method, d0)
 
 
 def get_models(database, target=None):

@@ -162,6 +162,7 @@ def get_correlates(database, methods, target=None):
         new_correlates = get_model_correlates(database, model, methods)
         if new_correlates is not None:
             correlates += new_correlates
+    return correlates
 
 
 def get_model_correlates(database, model, methods):
