@@ -15,6 +15,16 @@ def get_method_id_dictionaries(ids, names):
     return id2name, name2id
 
 
+def get_method_names_from_id_dict(methods, id2names):
+    """Get a list of method names from ID to name dictionary
+
+    :param methods: list of method ID's
+    :param id2names: dictionary with method ID as keys and method names as value
+    :return: list of method names
+    """
+    return [id2names[method] for method in methods]
+
+
 def remove_residue_column(data):
     """Remove legacy residue column (i.e. the first) from correlation table data
 
@@ -22,5 +32,14 @@ def remove_residue_column(data):
     :return: list of lists with data without the first column
     """
     return [entry[1:] for entry in data]
+
+
+def remove_model_column(data):
+    """Remove legacy model column, wrapper of remove_residue_column()
+
+       :param data: iterable of lists (rows) with data (a table)
+       :return: list of lists with data without the first column
+    """
+    return remove_residue_column(data)
 
 

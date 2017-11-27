@@ -318,6 +318,7 @@ def query_global_correlates(methods):
     for (num, method_id) in enumerate(methods):
         tablename = "t{}".format(num)
         froms.append("({}) AS {}".format(from_query.format(method_id), tablename))
+        # Report model as first column
         if previous is not None:
             ons.append(
                     "{}.model = {}.model".format(previous, tablename))
