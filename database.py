@@ -69,7 +69,7 @@ def create_result_database(db=":memory:"):
     CREATE TABLE domain(id INTEGER PRIMARY KEY ASC, method int REFERENCES method(id));
     CREATE TABLE component(id INTEGER PRIMARY KEY, target text REFERENCES target(id), num int, domain int REFERENCES domain(id));
     CREATE TABLE segment(start int, stop int, len int, domain int REFERENCES domain(id), PRIMARY KEY (start, domain));
-    CREATE TABLE model(id INTEGER PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text UNIQUE REFERENCES path(pathway), name text, UNIQUE(method, target, name));
+    CREATE TABLE model(id INTEGER PRIMARY KEY, method int REFERENCES method(id), target text REFERENCES target(id), path text UNIQUE REFERENCES path(pathway), name text, UNIQUE(method, target, name));
     CREATE TABLE qa(id INTEGER PRIMARY KEY, model int REFERENCES model(id), component int REFERENCES component(id), method int REFERENCES method(id), UNIQUE (model, component, method));
     CREATE TABLE qascore(qa int REFERENCES qa(id) PRIMARY KEY, global real);
     CREATE TABLE lscore(qa int REFERENCES qa(id), residue int, score real, PRIMARY KEY (qa, residue));
@@ -101,7 +101,7 @@ def create_result_database(db=":memory:"):
     database.execute(
         "CREATE TABLE segment(start int, stop int, len int, domain int REFERENCES domain(id), PRIMARY KEY (start, domain));")
     database.execute(
-        "CREATE TABLE model(id INTEGER PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text UNIQUE REFERENCES path(pathway), name text, UNIQUE(method, target, name));")
+        "CREATE TABLE model(id INTEGER PRIMARY KEY, method int REFERENCES method(id), target text REFERENCES target(id), path text UNIQUE REFERENCES path(pathway), name text, UNIQUE(method, target, name));")
         #"CREATE TABLE model(id INTEGER PRIMARY KEY, method int REFERENCES method(id), target int REFERENCES target(id), path text REFERENCES path(pathway), name text);")
     database.execute(
         "CREATE TABLE qa(id INTEGER PRIMARY KEY, model int REFERENCES model(id), component int REFERENCES component(id), method int REFERENCES method(id), UNIQUE (model, component, method));")
@@ -298,14 +298,28 @@ def get_or_add_method(method_name, method_desc, method_type_name, database):
 
     return method[0]
 
+
+def get_target_id(database):
+    """Get a list of targets specified in database
+
+    :param database: sqlite3 database connection
+    :return: list of target ID's (should be string names)
+    """
+    query = 'SELECT id FROM target;'
+    targets = database.execute(query).fetchall()
+    return [target[0] for target in targets]
+
+
     # select t1.model, t1.score, t2.score from
     # (select qa.model as model, qascore.global as score from qa inner join qascore on qa.id = qascore.qa where qa.method = 51) as t1,
     # (select qa.model as model, qascore.global as score from qa inner join qascore on qa.id = qascore.qa where qa.method = 52) as t2
     # on t1.model = t2.model;
-def query_global_correlates(methods):
+def query_global_correlates(methods, targets=None):
     """Format query for global correlates over QA model intersection
 
     :param methods: iterable of model integer ID's to intersect
+    :param targets: iterable with target text string names, for selection over
+                    subset of targets
     :return: string of sqlite3 query
     """
     from_query = "SELECT qa.model AS model, qascore.global AS score FROM qa INNER JOIN qascore ON qa.id = qascore.qa WHERE qa.method = {} AND qa.component IS NULL"
@@ -314,6 +328,7 @@ def query_global_correlates(methods):
     froms = []
     ons = []
     previous = None
+    model_column = None
 
     for (num, method_id) in enumerate(methods):
         tablename = "t{}".format(num)
@@ -323,13 +338,20 @@ def query_global_correlates(methods):
             ons.append(
                     "{}.model = {}.model".format(previous, tablename))
         else:
-            selects.append("{}.model".format(tablename))
+            model_column = "{}.model".format(tablename)
+            selects.append(model_column)
         selects.append("{}.score".format(tablename))
         previous = tablename
 
-    return "SELECT {} FROM {} ON {};".format(", ".join(selects),
+    where = None
+    if targets is not None:
+        ors = " OR ".join(["target = '{}'".format(target) for target in targets])
+        model_select = "SELECT id FROM model WHERE {}".format(ors)
+        where = " WHERE {} IN ({})".format(model_column, model_select)
+
+    return "SELECT {} FROM {} ON {}{};".format(", ".join(selects),
                                              ", ".join(froms),
-                                             " AND ".join(ons))
+                                             " AND ".join(ons), where)
 
 
 def store_qa(model, global_score, local_score, qa_method, database, component=None):
