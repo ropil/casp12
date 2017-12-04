@@ -349,9 +349,16 @@ def query_global_correlates(methods, targets=None):
         model_select = "SELECT id FROM model WHERE {}".format(ors)
         where = " WHERE {} IN ({})".format(model_column, model_select)
 
-    return "SELECT {} FROM {} ON {}{};".format(", ".join(selects),
+    query = "SELECT {} FROM {} ON {}".format(", ".join(selects),
                                              ", ".join(froms),
-                                             " AND ".join(ons), where)
+                                             " AND ".join(ons))
+    # Append where clause if it exists; for target selection
+    if where is not None:
+        query += where
+
+    query += ";"
+
+    return query
 
 
 def store_qa(model, global_score, local_score, qa_method, database, component=None):
