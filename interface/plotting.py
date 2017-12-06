@@ -3,7 +3,7 @@ from .pandas import get_dataframe
 from ..internal.data import remove_residue_column, remove_model_column
 
 
-def correlate_methods(methods_ids, methods_id2name, database):
+def correlate_methods(methods_ids, methods_id2name, database, targets=None):
     """Defaults to correlate_methods_local
 
     :param methods_ids: list of method integer identifiers
@@ -11,10 +11,10 @@ def correlate_methods(methods_ids, methods_id2name, database):
     :param database: sqlite3 database connection
     :return: pandas dataframe
     """
-    return correlate_methods_local(methods_ids, methods_id2name, database)
+    return correlate_methods_local(methods_ids, methods_id2name, database, targets=targets)
 
 
-def correlate_methods_local(methods_ids, methods_id2name, database):
+def correlate_methods_local(methods_ids, methods_id2name, database, targets=None):
     """Get plotting ready Pandas dataframe with method local correlates
 
     :param methods_ids: list of method integer identifiers
@@ -24,7 +24,7 @@ def correlate_methods_local(methods_ids, methods_id2name, database):
     """
     methods = sorted(list(methods_ids))
     names = [methods_id2name[method] for method in methods]
-    correlates = remove_residue_column(get_correlates(database, methods))
+    correlates = remove_residue_column(get_correlates(database, methods, target=targets))
     return get_dataframe(correlates, names)
 
 

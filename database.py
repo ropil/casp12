@@ -256,7 +256,13 @@ def get_models(database, target=None):
     query = "select id from model;"
     # Select only pertaining to a target if specified
     if target is not None:
-        query = 'SELECT id FROM model WHERE target = "{}";'.format(target)
+        target_query = "WHERE {};"
+        if type(target) is list:
+            target_query = target_query.format(" OR ".join(["target = '{}'".format(targ) for targ in target]))
+        else:
+            target_query = target_query.format("target = '{}'".format(target))
+        query = 'SELECT id FROM model ' + target_query
+        #query = 'SELECT id FROM model WHERE target = "{}";'.format(target)
     return [entry[0] for entry in database.execute(query).fetchall()]
 
 
