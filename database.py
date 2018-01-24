@@ -391,7 +391,7 @@ def query_global_correlates(methods, targets=None):
     return query
 
 
-# Not finished 
+# Not finished
 def query_local_correlates(methods, model):
     """ Get correlates for a model, over specified methods
 
