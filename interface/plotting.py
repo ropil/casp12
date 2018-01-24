@@ -28,6 +28,20 @@ def correlate_methods_local(methods_ids, methods_id2name, database, targets=None
     return get_dataframe(correlates, names)
 
 
+def correlate_methods_local_on_models(methods_ids, methods_id2name, database, targets=None):
+    """Get plotting ready Pandas dataframe with method local correlates
+
+    :param methods_ids: list of method integer identifiers
+    :param methods_id2name: dictionary with method ID as keys and name as values
+    :param database: sqlite3 database connection
+    :return: pandas dataframe
+    """
+    methods = sorted(list(methods_ids))
+    names = [methods_id2name[method] for method in methods]
+    correlates = remove_residue_column(get_correlates(database, methods, target=targets))
+    return get_dataframe(correlates, names)
+
+
 def correlate_methods_global(methods_ids, methods_id2name, database, targets=None):
     """Get plotting ready Pandas dataframe with method global correlates
 

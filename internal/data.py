@@ -42,4 +42,17 @@ def remove_model_column(data):
     """
     return remove_residue_column(data)
 
+def collapse_dictionary_to_list_of_tuples(dictionary):
+    """Move key identifiers of a dictionary into first element of all tuples
+       contained within
+
+    :param dictionary: dictionary to collapse
+    :return: list of tuples, with key as first element in each tuple
+    """
+    tuplelist = []
+    for key in dictionary:
+        for entry in dictionary[key]:
+            tuplelist.append([key] + list(entry))
+    return tuplelist
+
 

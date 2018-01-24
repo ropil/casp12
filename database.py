@@ -165,6 +165,30 @@ def get_correlates(database, methods, target=None):
     return correlates
 
 
+def get_local_correlates_with_model_id(database, methods, target=None):
+    """ Get QA local scorecorrelates for a target over a set of methods
+
+        :param database: sqlite3 database connection
+        :param methods: list with integer method ID's
+        :param target: Stirng with target identifier. if specified, only get
+                       correlates pertaining to target
+        :return: dictionary of lists of tuples with residue number as first
+                 lement and local scores from all QA's found
+        """
+    # query = "select id, name from method where type = 2 or type = 3;"
+    # methods = database.execute(query).fetchall()
+
+    models = get_models(database, target=target)
+
+    qa_query = "SELECT id FROM qa WHERE model = {} AND method = {} AND component IS NULL"
+    score_query = "SELECT residue, score FROM lscore WHERE qa = {}"
+
+    correlates = {}
+    for model in models:
+        correlates[model] = get_model_correlates(database, model, methods)
+    return correlates
+
+
 def get_model_correlates(database, model, methods):
     """ Get correlates for a model, over specified methods
 
@@ -365,6 +389,51 @@ def query_global_correlates(methods, targets=None):
     query += ";"
 
     return query
+
+
+# Not finished 
+def query_local_correlates(methods, model):
+    """ Get correlates for a model, over specified methods
+
+    :param database: sqlite3 connection
+    :param model: integer model ID
+    :param methods: list of integer method IDs
+    :return: list of tuples with float correlates
+    """
+    qa_query = "SELECT id FROM qa WHERE model = {} AND method = {} AND component IS NULL"
+    score_query = "SELECT residue, score FROM lscore WHERE qa = {}"
+
+    selects = []
+    froms = []
+    ons = []
+    previous = None
+    skip = False
+    # print("MODEL: {}".format(model))
+    for (num, method_id) in enumerate(methods):
+        tablename = "t{}".format(num)
+        qa = database.execute(qa_query.format(model, method_id)).fetchone()
+        if qa is not None:
+            # print("TABLE NUM: {}, METHOD ID: {}".format(num, method_id))
+            qa = qa[0]
+            if previous is None:
+                selects.append("{}.residue".format(tablename))
+            selects.append("{}.score".format(tablename))
+            froms.append("({}) AS {}".format(score_query.format(qa), tablename))
+            if previous is not None:
+                ons.append(
+                    "{}.residue = {}.residue".format(previous, tablename))
+            previous = tablename
+        else:
+            # print("SKIPPING")
+            skip = True
+            break
+    if skip:
+        return None
+    current_query = "SELECT {} FROM {} ON {};".format(", ".join(selects),
+                                                      ", ".join(froms),
+                                                      " AND ".join(ons))
+    # print(current_query)
+    return database.execute(current_query).fetchall()
 
 
 def store_qa(model, global_score, local_score, qa_method, database, component=None):
