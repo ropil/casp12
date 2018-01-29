@@ -185,7 +185,9 @@ def get_local_correlates_with_model_id(database, methods, target=None):
 
     correlates = {}
     for model in models:
-        correlates[model] = get_model_correlates(database, model, methods)
+        model_correlates = get_model_correlates(database, model, methods)
+        if model_correlates is not None:
+            correlates[model] = model_correlates
     return correlates
 
 
@@ -391,49 +393,52 @@ def query_global_correlates(methods, targets=None):
     return query
 
 
-# Not finished
-def query_local_correlates(methods, model):
-    """ Get correlates for a model, over specified methods
+def query_global_correlates_proper(methods, targets=None):
+    """Format query for global correlates over QA model intersection
 
-    :param database: sqlite3 connection
-    :param model: integer model ID
-    :param methods: list of integer method IDs
-    :return: list of tuples with float correlates
+    :param methods: iterable of model integer ID's to intersect
+    :param targets: iterable with target text string names, for selection over
+                    subset of targets
+    :return: string of sqlite3 query
     """
-    qa_query = "SELECT id FROM qa WHERE model = {} AND method = {} AND component IS NULL"
-    score_query = "SELECT residue, score FROM lscore WHERE qa = {}"
+    from_query = "SELECT model.target AS target, qa.model AS model, qascore.global AS score FROM qa INNER JOIN qascore ON qa.id = qascore.qa INNER JOIN model ON model.id = qa.model WHERE qa.method = {} AND qa.component IS NULL"
 
     selects = []
     froms = []
     ons = []
     previous = None
-    skip = False
-    # print("MODEL: {}".format(model))
+    model_column = None
+
     for (num, method_id) in enumerate(methods):
         tablename = "t{}".format(num)
-        qa = database.execute(qa_query.format(model, method_id)).fetchone()
-        if qa is not None:
-            # print("TABLE NUM: {}, METHOD ID: {}".format(num, method_id))
-            qa = qa[0]
-            if previous is None:
-                selects.append("{}.residue".format(tablename))
-            selects.append("{}.score".format(tablename))
-            froms.append("({}) AS {}".format(score_query.format(qa), tablename))
-            if previous is not None:
-                ons.append(
-                    "{}.residue = {}.residue".format(previous, tablename))
-            previous = tablename
+        froms.append("({}) AS {}".format(from_query.format(method_id), tablename))
+        # Report model as first column
+        if previous is not None:
+            froms[-1] += " ON {}.model = {}.model".format(previous, tablename)
         else:
-            # print("SKIPPING")
-            skip = True
-            break
-    if skip:
-        return None
-    current_query = "SELECT {} FROM {} ON {};".format(", ".join(selects),
-                                                      ", ".join(froms),
-                                                      " AND ".join(ons))
-    # print(current_query)
-    return database.execute(current_query).fetchall()
+            model_column = "{}.model".format(tablename)
+            target_column = "{}.target".format(tablename)
+            selects.append(target_column)
+            selects.append(model_column)
+        selects.append("{}.score".format(tablename))
+        previous = tablename
+
+    where = None
+    if targets is not None:
+        ors = " OR ".join(["target = '{}'".format(target) for target in targets])
+        model_select = "SELECT id FROM model WHERE {}".format(ors)
+        where = " WHERE {} IN ({})".format(model_column, model_select)
+
+    query = "SELECT {} FROM {}".format(", ".join(selects),
+                                             " INNER JOIN ".join(froms))
+
+    # Append where clause if it exists; for target selection
+    if where is not None:
+        query += where
+
+    query += ";"
+
+    return query
 
 
 def store_qa(model, global_score, local_score, qa_method, database, component=None):
