@@ -1,4 +1,5 @@
 from pandas import concat, DataFrame, MultiIndex, Series
+from numpy import arctanh
 from ..internal.calculations import d2S
 
 
@@ -131,3 +132,12 @@ def score_columns(dataframe, columns, d0):
     for column in columns:
         converted = score_column(converted, column, d0)
     return converted
+
+
+def fischer_transform_dataframe(dataframe):
+    """Apply numpy.arctanh as the Fischer z-transform to the whole dataframe
+
+    :param dataframe: Pandas dataframe to apply transform to
+    :return: Pandas DataFrame of transform
+    """
+    return dataframe.apply(arctanh)
